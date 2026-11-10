@@ -1,0 +1,7 @@
+{
+  "name": "Hydrobot.Ai",
+  "description": "Smart greenhouse and agricultural farm management dashboard with hybrid Farm Assistant",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

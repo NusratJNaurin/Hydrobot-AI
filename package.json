@@ -1,0 +1,18 @@
+{
+  "name": "hydrobot-ai",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Hydrobot.Ai greenhouse management dashboard",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'No build step required'",
+    "lint": "echo 'No lint required'"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@google/genai": "^3.0.0"
+  }
+}
