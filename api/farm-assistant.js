@@ -1,6 +1,36 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { GoogleGenAI } = require('@google/genai');
+
+const ROOT = path.resolve(__dirname, '..');
+
+function loadEnv() {
+  const envFile = path.join(ROOT, '.env');
+  const exampleFile = path.join(ROOT, '.env.example');
+
+  const parseFile = (file) => {
+    if (!fs.existsSync(file)) return;
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
+      }
+    }
+  };
+
+  parseFile(envFile);
+  parseFile(exampleFile);
+
+  if (!fs.existsSync(envFile) && fs.existsSync(exampleFile)) {
+    try {
+      fs.copyFileSync(exampleFile, envFile);
+    } catch (e) {}
+  }
+}
+
+loadEnv();
 
 function parseGeminiError(error) {
   let message = error.message || 'Gemini API call failed.';
@@ -44,6 +74,7 @@ async function answerFarmQuestion(body) {
     throw err;
   }
 
+  loadEnv();
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     const err = new Error('GEMINI_API_KEY is not configured on the server. Please set a valid API key in Settings > Secrets or .env.');
@@ -52,7 +83,8 @@ async function answerFarmQuestion(body) {
     throw err;
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
   const records = typeof body.farmContext === 'string' ? body.farmContext : '{}';
 
@@ -102,37 +134,50 @@ ${records}`;
     { role: 'user', parts: [{ text: question }] },
   ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        tools: [{ googleSearch: {} }],
-      },
-    });
+  let lastError = null;
+  for (const modelToUse of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model: modelToUse,
+        contents,
+        config: {
+          systemInstruction,
+          tools: [{ googleSearch: {} }],
+        },
+      });
 
-    const text = (response.text || '').trim();
-    if (!text) {
-      const err = new Error('Gemini returned an empty response.');
-      err.status = 502;
-      err.code = 'empty_response';
-      throw err;
+      const text = (response.text || '').trim();
+      if (!text) continue;
+
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      const sources = Array.isArray(chunks)
+        ? chunks.filter(c => c && c.web && c.web.uri).map(c => ({ uri: c.web.uri, title: c.web.title || c.web.uri }))
+        : [];
+
+      return { text, sources };
+    } catch (error) {
+      lastError = error;
+      const msg = error.message || '';
+      if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE') || msg.includes('NOT_FOUND') || msg.includes('404')) {
+        console.warn(`Model ${modelToUse} failed with: ${msg}. Retrying with next model...`);
+        continue;
+      }
+      break;
     }
+  }
 
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources = Array.isArray(chunks)
-      ? chunks.filter(c => c && c.web && c.web.uri).map(c => ({ uri: c.web.uri, title: c.web.title || c.web.uri }))
-      : [];
-
-    return { text, sources };
-  } catch (error) {
-    const parsed = parseGeminiError(error);
+  if (lastError) {
+    const parsed = parseGeminiError(lastError);
     const err = new Error(parsed.message);
     err.status = parsed.status;
     err.code = parsed.code;
     throw err;
   }
+
+  const err = new Error('Gemini returned an empty response across all models.');
+  err.status = 502;
+  err.code = 'empty_response';
+  throw err;
 }
 
 module.exports = async function handler(req, res) {

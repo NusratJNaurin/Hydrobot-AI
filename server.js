@@ -17,11 +17,26 @@ const MIME_TYPES = {
 };
 
 function loadEnv() {
-  const file = path.join(ROOT, '.env');
-  if (!fs.existsSync(file)) return;
-  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (match && !process.env[match[1]]) process.env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
+  const envFile = path.join(ROOT, '.env');
+  const exampleFile = path.join(ROOT, '.env.example');
+
+  const parseFile = (file) => {
+    if (!fs.existsSync(file)) return;
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
+      }
+    }
+  };
+
+  parseFile(envFile);
+  parseFile(exampleFile);
+
+  if (!fs.existsSync(envFile) && fs.existsSync(exampleFile)) {
+    try {
+      fs.copyFileSync(exampleFile, envFile);
+    } catch (e) {}
   }
 }
 
@@ -96,12 +111,15 @@ async function answerFarmQuestion(body) {
   const question = typeof body.question === 'string' ? body.question.trim() : '';
   if (!question) throw Object.assign(new Error('A question is required.'), { status: 400 });
   if (question.length > 2000) throw Object.assign(new Error('The question is too long.'), { status: 400 });
+  
+  loadEnv();
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     throw Object.assign(new Error('GEMINI_API_KEY is not configured on the server. Please set a valid API key in Settings > Secrets or .env.'), { status: 503, code: 'not_configured' });
   }
 
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
   const records = typeof body.farmContext === 'string' ? body.farmContext : '{}';
 
@@ -151,29 +169,44 @@ ${records}`;
     { role: 'user', parts: [{ text: question }] },
   ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction,
-        tools: [{ googleSearch: {} }],
-      },
-    });
+  let lastError = null;
+  for (const modelToUse of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model: modelToUse,
+        contents,
+        config: {
+          systemInstruction,
+          tools: [{ googleSearch: {} }],
+        },
+      });
 
-    const text = (response.text || '').trim();
-    if (!text) throw Object.assign(new Error('Gemini returned an empty response.'), { status: 502, code: 'empty_response' });
+      const text = (response.text || '').trim();
+      if (!text) continue;
 
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources = Array.isArray(chunks)
-      ? chunks.filter(c => c && c.web && c.web.uri).map(c => ({ uri: c.web.uri, title: c.web.title || c.web.uri }))
-      : [];
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      const sources = Array.isArray(chunks)
+        ? chunks.filter(c => c && c.web && c.web.uri).map(c => ({ uri: c.web.uri, title: c.web.title || c.web.uri }))
+        : [];
 
-    return { text, sources };
-  } catch (error) {
-    const parsed = parseGeminiError(error);
+      return { text, sources };
+    } catch (error) {
+      lastError = error;
+      const msg = error.message || '';
+      if (msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE') || msg.includes('NOT_FOUND') || msg.includes('404')) {
+        console.warn(`Model ${modelToUse} failed with: ${msg}. Retrying with next model...`);
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (lastError) {
+    const parsed = parseGeminiError(lastError);
     throw Object.assign(new Error(parsed.message), { status: parsed.status, code: parsed.code });
   }
+
+  throw Object.assign(new Error('Gemini returned an empty response across all models.'), { status: 502, code: 'empty_response' });
 }
 
 function serveStatic(req, res, pathname) {
