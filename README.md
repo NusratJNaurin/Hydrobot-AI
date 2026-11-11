@@ -127,6 +127,21 @@ cp .env.example .env
 
 ---
 
+## ☁️ Vercel Deployment Settings
+
+When deploying **Hydrobot.Ai** to Vercel:
+
+- **Framework Preset**: **Other** (or leave as Default / Automatic).
+- **Build Command**: `echo 'No build step required'` (or leave blank).
+- **Output Directory**: `.` (or leave blank).
+- **Environment Variables**:
+  - `GEMINI_API_KEY`: *(Required)* Your API key from Google AI Studio.
+  - `GEMINI_MODEL`: *(Optional)* `gemini-3.8-flash` (or `gemini-2.5-flash`).
+
+*The included `vercel.json` file automatically configures Vercel serverless execution for `server.js` and routes `/api/farm-assistant` requests.*
+
+---
+
 ## 🚦 Quickstart & Local Setup
 
 ### Prerequisites
