@@ -10,7 +10,7 @@
     "lint": "echo 'No lint required'"
   },
   "engines": {
-    "node": "26.x"
+    "node": ">=18"
   },
   "dependencies": {
     "@google/genai": "^3.0.0"

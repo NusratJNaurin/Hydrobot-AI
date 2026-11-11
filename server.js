@@ -6,6 +6,7 @@ const http = require('node:http');
 const { URL } = require('node:url');
 
 const ROOT = __dirname;
+const PUBLIC_DIR = path.join(ROOT, 'public');
 const MAX_BODY_BYTES = 256 * 1024;
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -148,8 +149,8 @@ ${records}`;
 
 function serveStatic(req, res, pathname) {
   const requested = pathname === '/' ? '/index.html' : pathname;
-  const file = path.resolve(ROOT, '.' + requested);
-  if (!file.startsWith(ROOT + path.sep)) return sendJson(res, 403, { error: 'Forbidden.' });
+  const file = path.resolve(PUBLIC_DIR, '.' + requested);
+  if (!file.startsWith(PUBLIC_DIR + path.sep) && file !== PUBLIC_DIR) return sendJson(res, 403, { error: 'Forbidden.' });
   fs.stat(file, (error, stats) => {
     if (error || !stats.isFile()) return sendJson(res, 404, { error: 'Not found.' });
     res.writeHead(200, { 'Content-Type': MIME_TYPES[path.extname(file)] || 'application/octet-stream' });
@@ -174,4 +175,4 @@ const server = http.createServer(async (req, res) => {
 });
 
 const port = Number(process.env.PORT) || 3000;
-server.listen(port, '0.0.0.0', () => console.log(`Hydrobot.Ai is running at http://0.0.0.0:${port}`));
+server.listen(port, '0.0.0.0', () => console.log(`Hydrobot.Ai local dev server running at http://0.0.0.0:${port}`));

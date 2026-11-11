@@ -1,12 +1,3 @@
 {
-  "rewrites": [
-    {
-      "source": "/api/farm-assistant",
-      "destination": "/server.js"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/$1"
-    }
-  ]
+  "cleanUrls": true
 }

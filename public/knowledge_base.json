@@ -1,0 +1,178 @@
+[
+  {
+    "id": "kb-nft",
+    "category": "hydroponics",
+    "keywords": ["nft", "nutrient film technique", "gully", "sloped channel", "recirculating stream"],
+    "questions": [
+      "What is nutrient film technique?",
+      "How does NFT hydroponics work?",
+      "What crops grow best in NFT systems?",
+      "What is the recommended slope for NFT channels?"
+    ],
+    "answer": "**Nutrient Film Technique (NFT) Overview & Best Practices:**\n• **Working Principle:** A thin film of nutrient solution (1–2 mm deep) flows continuously or on short timer cycles down slightly inclined gullies or channels, bathing the root bottoms while leaving the upper root zone exposed to air for high oxygenation.\n• **Slope & Flow Rate:** Recommended channel slope is 1:30 to 1:40 (approx. 2.5% to 3.3% grade). Target solution flow rate is 1.0 to 2.0 liters per minute per channel.\n• **Ideal Crops:** Fast-maturing, non-fruiting leafy greens and culinary herbs with compact root systems, such as Butterhead Lettuce [B-101] and Genovese Basil [B-301].\n• **Key Risks & Precautions:** Because there is minimal substrate buffer, any irrigation pump failure or pipe blockage can cause water stress within hours. Backup pumps and inline flow sensors are strongly recommended."
+  },
+  {
+    "id": "kb-dwc",
+    "category": "hydroponics",
+    "keywords": ["dwc", "deep water culture", "raft", "floating raft", "aerated reservoir"],
+    "questions": [
+      "What is deep water culture?",
+      "How does DWC work?",
+      "What are the advantages of deep water culture?",
+      "What dissolved oxygen is needed for DWC?"
+    ],
+    "answer": "**Deep Water Culture (DWC) / Floating Raft System:**\n• **Working Principle:** Crops sit in net pots on high-density food-grade polystyrene or HDPE rafts floating directly on a deep reservoir (typically 20–30 cm deep) of aerated nutrient solution.\n• **Dissolved Oxygen (DO):** Requires active continuous aeration via air blowers and micro-porous diffusers. Dissolved oxygen must be maintained above 6.5–8.0 mg/L (ppm) to prevent Pythium root rot.\n• **Advantages:** Huge thermal and water buffer. If electricity or aeration briefly cuts out, plants have ample water reserve for days.\n• **Ideal Crops:** Basil, mint, kale, Swiss chard, and head lettuces."
+  },
+  {
+    "id": "kb-dutch-bucket",
+    "category": "hydroponics",
+    "keywords": ["dutch bucket", "bato bucket", "drip hydroponics", "perlite", "coir substrate"],
+    "questions": [
+      "What is a Dutch bucket system?",
+      "How do Bato buckets work?",
+      "What crops are best grown in Dutch buckets?",
+      "Why use Dutch buckets for tomatoes?"
+    ],
+    "answer": "**Dutch Bucket (Bato Bucket) Systems:**\n• **Working Principle:** Individual 11–14 liter buckets connected by a common central siphon drain pipe. Each bucket is filled with inert media (typically 100% coarse perlite or a 70/30 coco coir/perlite blend) and fed by pressure-compensating drip emitters.\n• **Substrate & Drainage:** Excess nutrient runoff is collected through an internal siphon elbow at the bottom, maintaining a 2–3 cm reserve pool while discharging excess into a return manifold.\n• **Best Crops:** Long-cycle vine and fruiting crops requiring robust physical root anchoring and high nutrient flux, such as Cherry Tomatoes [B-201], beefsteak tomatoes, bell peppers, and cucumbers."
+  },
+  {
+    "id": "kb-vertical-farming",
+    "category": "agricultural_technology",
+    "keywords": ["vertical farming", "vertical towers", "tower garden", "aeroponic tower", "high density cultivation"],
+    "questions": [
+      "What is vertical farming?",
+      "How do vertical hydroponic towers work?",
+      "What agricultural technology is best for vertical farming?",
+      "What are the benefits of vertical farming towers?"
+    ],
+    "answer": "**Vertical Farming & Tower Systems:**\n• **Working Principle:** Plants are cultivated vertically in modular food-grade columns, aeroponic cylinders, or multi-tier vertical racks (such as Greenhouse D's vertical NFT towers), dramatically increasing plant density per square meter of footprint.\n• **Space Efficiency:** Triples to quadruples effective crop canopy footprint (ideal for strawberries [B-401] and dwarf greens).\n• **Recommended CEA Technologies:** Full-spectrum targeted LED bar fixtures (300–450 µmol/m²/s PPFD), automated peristaltic dosing rigs, inline UV or ozone sterilization for recirculating water, and destratification circulation fans to eliminate vertical microclimate temperature gradients."
+  },
+  {
+    "id": "kb-blossom-end-rot",
+    "category": "plant_pathology",
+    "keywords": ["blossom end rot", "calcium deficiency", "black bottom tomato", "sunken leathery spot", "ca deficiency"],
+    "questions": [
+      "How do I prevent blossom end rot in tomatoes?",
+      "What causes blossom end rot?",
+      "Why are the bottoms of my tomatoes turning black?",
+      "How to treat calcium deficiency in tomatoes?"
+    ],
+    "answer": "**Diagnosing & Preventing Blossom End Rot (BER) in Fruiting Crops:**\n• **Symptom:** Flat, sunken, leathery dark brown or black scar at the blossom end (distal tip) of developing tomatoes or peppers.\n• **Physiological Cause:** Localized calcium (Ca²⁺) starvation in rapidly expanding distal fruit cells during cell wall synthesis. Calcium is transported exclusively through xylem transpiration stream, not phloem.\n• **Triggers:** Irregular irrigation wet/dry cycles, excessively high Vapor Pressure Deficit (VPD > 1.6 kPa) causing stomatal closure, high root-zone salinity/EC (> 3.5 mS/cm), or excessive ammonium (NH₄⁺) / potassium (K⁺) competing against Ca²⁺ uptake.\n• **Corrective Protocol:**\n  1. Maintain root-zone pH between 5.8 and 6.2.\n  2. Supply calcium nitrate [I-04] to target 160–200 ppm soluble Ca²⁺ in the reservoir.\n  3. Ensure consistent substrate moisture in Dutch buckets with pulse fertigation.\n  4. Provide gentle horizontal airflow (0.3–0.5 m/s) to maintain steady canopy transpiration."
+  },
+  {
+    "id": "kb-yellow-leaves",
+    "category": "plant_pathology",
+    "keywords": ["yellow leaves", "chlorosis", "iron chlorosis", "nitrogen deficiency", "leaf yellowing", "interveinal chlorosis"],
+    "questions": [
+      "Why are my plant leaves turning yellow?",
+      "What causes chlorosis in hydroponic crops?",
+      "How do I fix yellow leaves?",
+      "What is the difference between iron and nitrogen chlorosis?"
+    ],
+    "answer": "**Diagnostic Guide for Leaf Yellowing (Chlorosis) in Crops:**\n• **New / Top Growth Yellowing with Green Veins (Interveinal Chlorosis):** Iron (Fe) lockout. Iron is immobile. In hydroponics, pH above 6.5 precipitates iron out of solution. *Action:* Lower reservoir pH to 5.8 using phosphoric acid [I-06] and supplement with Fe-DTPA or Fe-EDDHA chelated iron.\n• **Older / Lower Leaves Yellowing Uniformly:** Nitrogen (N) deficiency. Nitrogen is mobile; plants scavenge N from old foliage to fuel new apical shoot growth. *Action:* Check EC and increase calcium nitrate [I-04] / master blend feed.\n• **Interveinal Yellowing on Mature Lower Leaves:** Magnesium (Mg) deficiency. *Action:* Dose magnesium sulfate (Epsom salt) at 30–50 ppm Mg.\n• **Marginal Leaf Scorching / Necrosis:** Potassium (K) deficiency or extreme root-zone EC/osmotic stress. *Action:* Flush reservoir with fresh water to reset root-zone EC."
+  },
+  {
+    "id": "kb-vpd",
+    "category": "agricultural_technology",
+    "keywords": ["vpd", "vapor pressure deficit", "transpiration", "humidity and temperature", "kpa"],
+    "questions": [
+      "What is VPD in agriculture?",
+      "What is the ideal vapor pressure deficit for greenhouse crops?",
+      "How does VPD affect plant growth?",
+      "Why is vapor pressure deficit better than relative humidity?"
+    ],
+    "answer": "**Vapor Pressure Deficit (VPD) in Controlled Agriculture:**\n• **Definition:** The difference between the pressure exerted by water vapor inside the saturated leaf interior (at leaf temp) and the water vapor pressure of the surrounding ambient air, measured in kilopascals (kPa).\n• **Why VPD Matters:** Relative humidity alone is misleading because warm air holds vastly more moisture than cool air. VPD governs actual stomatal transpiration and nutrient suction.\n• **Optimal Targets:**\n  - Early Vegetative / Leafy Greens: **0.8 to 1.1 kPa**\n  - Mature Fruiting / Tomatoes / Strawberries: **1.0 to 1.4 kPa**\n  - Low VPD (< 0.5 kPa): Air is too humid; transpiration stops, risking calcium deficiency, edema, and botrytis blight.\n  - High VPD (> 1.6 kPa): Air is too dry; plants close stomata to conserve water, halting CO₂ intake and photosynthesis."
+  },
+  {
+    "id": "kb-ipm",
+    "category": "pest_management",
+    "keywords": ["ipm", "integrated pest management", "spider mites", "aphids", "thrips", "whiteflies", "biological control", "predatory mites"],
+    "questions": [
+      "How to manage pests with IPM?",
+      "How do I control spider mites in hydroponics?",
+      "What biological controls work best for aphids and thrips?",
+      "What is Integrated Pest Management?"
+    ],
+    "answer": "**Integrated Pest Management (IPM) & Biological Controls:**\n• **Scouting & Physical Barriers:** Weekly monitoring with yellow sticky cards (for fungus gnats and whiteflies) and blue sticky cards (for western flower thrips). Maintain positive pressure vestibules and 50-mesh intake screens.\n• **Two-Spotted Spider Mites (*Tetranychus urticae*):** Release predatory mites *Phytoseiulus persimilis* [I-03] at 2–5 mites/m² preventative, 20/m² curative. Thrives at 65–75% RH.\n• **Thrips & Whiteflies:** Introduce *Amblyseius swirskii* or *Orius insidiosus* (minute pirate bug).\n• **Aphids:** Release parasitic wasps (*Aphidius colemani*) or green lacewing larvae (*Chrysoperla carnea*).\n• **Bio-fungicides:** Colonize roots with *Trichoderma harzianum* or *Bacillus subtilis* to outcompete waterborne Pythium root pathogens."
+  },
+  {
+    "id": "kb-sensors-equipment",
+    "category": "agricultural_technology",
+    "keywords": ["sensors", "monitoring equipment", "cea technology", "automation", "sensors needed", "tools for greenhouse", "dosing"],
+    "questions": [
+      "What sensors are needed for an automated greenhouse?",
+      "What equipment is recommended for controlled environment agriculture?",
+      "How do automated hydroponic dosing systems work?",
+      "What tools should commercial farmers use?"
+    ],
+    "answer": "**Recommended Agricultural Technologies & Sensors for CEA:**\n• **Root-Zone Monitoring:** Glass-bulb industrial sealed pH electrodes, toroidal/graphite electrical conductivity (EC) probes, inline RTD temperature sensors, and capacitive or TDR substrate moisture sensors.\n• **Atmospheric & Canopy Telemetry:** Aspirated air temperature & relative humidity sensor boxes (e.g. SHT45), NDIR optical CO₂ sensors (measuring 400–1200 ppm), and infrared leaf temperature canopy sensors to compute live leaf-to-air VPD.\n• **Light Sensors:** Quantum PAR meters measuring Photosynthetic Photon Flux Density (PPFD in µmol/m²/s) and Daily Light Integral (DLI in mol/m²/day).\n• **Automation & Dosing Hardware:** Peristaltic chemical metering pumps or venturi injectors linked to PLC/microcontroller feedback loops for pH Down (phosphoric acid [I-06]) and concentrated A/B stock solutions."
+  },
+  {
+    "id": "kb-crops-ph-ec",
+    "category": "crop_guides",
+    "keywords": ["ph and ec", "optimal ph", "optimal ec", "lettuce parameters", "tomato parameters", "strawberry parameters", "basil parameters"],
+    "questions": [
+      "What are the optimal pH and EC targets for crops?",
+      "What is the best pH and EC for hydroponic strawberries?",
+      "What pH and EC does butterhead lettuce need?",
+      "What nutrient levels are needed for tomatoes?"
+    ],
+    "answer": "**Optimal pH & EC Parameters by Commercial Crop:**\n• **Butterhead Lettuce [B-101]:** pH 5.6–6.2 | EC 0.8–1.4 mS/cm | Temp 18–22°C. Sensitive to high salts which induce tip-burn.\n• **Cherry Tomatoes [B-201]:** pH 5.8–6.5 | EC 2.0–2.8 mS/cm (vegetative), 2.6–3.5 mS/cm (fruiting) | Temp 21–26°C. Demands high potassium and calcium.\n• **Genovese Basil [B-301]:** pH 5.5–6.5 | EC 1.0–1.6 mS/cm | Water temp 20–24°C. Very sensitive to cold water below 18°C.\n• **Albion Strawberries [B-401]:** pH 5.5–6.2 | EC 1.0–1.4 mS/cm (vegetative), 1.4–1.8 mS/cm (fruiting) | Temp 18–24°C. Salt-sensitive; requires regular root flushes."
+  },
+  {
+    "id": "kb-website-features",
+    "category": "platform_operations",
+    "keywords": ["what features", "features of this website", "website modules", "platform overview", "what can this app do", "hydrobot platform"],
+    "questions": [
+      "What features does this platform have?",
+      "Explain the website modules",
+      "What can Hydrobot.Ai do?",
+      "How is the dashboard organized?"
+    ],
+    "answer": "**Hydrobot.Ai Farm Management System Architecture:**\nHydrobot.Ai provides 15 dedicated modules organized into three operational tiers:\n• **1. Core Farm Operations:**\n  - **Dashboard:** Farmwide KPIs, active plants, bay statuses, and projected revenue.\n  - **Plant Management:** Batch life-cycles, growth stages (seedling to ready), zones, and plant health scores.\n  - **Greenhouse Management:** Real-time environmental telemetry (pH, EC, Temp, Humidity, CO₂, Reservoir level) with tolerance ranges.\n  - **Harvest Management:** Log actual harvested kilograms, calculate yield variance vs. estimates, and assign quality grades (A/B/C).\n  - **Farmer Tasks:** Work order dispatch, priority flags, assignee filtering, and deadline tracking.\n  - **Smart Inventory:** Supplies tracking, cost per unit, and automated reorder threshold triggers (`qty < threshold`).\n• **2. Agricultural AI & Intelligence:**\n  - **Crop Nutrition:** Dosing calculators, A/B fertilizer recipes, and chemical balancing.\n  - **Disease Detection:** Visual symptom diagnostic guides and crop health scans.\n  - **Farm Assistant:** Hybrid natural language assistant with instant local knowledge retrieval and Gemini AI reasoning.\n  - **Production Forecast:** 30/60/90-day harvest volume forecasting with 90% confidence bands.\n• **3. Business Analytics & Logistics:**\n  - **Yield Analytics:** Historical monthly production, kg per m² of canopy, and quality grade splits.\n  - **Financial Dashboard:** Revenue from delivered sales, operational expenses by category, and operating margins.\n  - **Sales & Logistics:** Wholesale order pipeline, delivery vehicle assignments, and dispatch status."
+  },
+  {
+    "id": "kb-how-to-batch",
+    "category": "platform_operations",
+    "keywords": ["how to add batch", "create new batch", "plant new crop", "register batch"],
+    "questions": [
+      "How do I add a new batch?",
+      "How to plant a crop batch in the system?",
+      "Where do I register a batch?"
+    ],
+    "answer": "**How to Register a New Crop Batch:**\n1. Navigate to **Plant Management** via the sidebar (or press `/` and type `batch`).\n2. Click the green **+ New batch** button in the header.\n3. Fill in the modal fields: select the crop (Lettuce, Tomato, Basil, Strawberry), greenhouse bay, zone, seedling count, planted date, and anticipated harvest date.\n4. Click **Create batch**. The system will automatically generate a new `[B-xxx]` batch ID and calculate initial readiness."
+  },
+  {
+    "id": "kb-how-to-task",
+    "category": "platform_operations",
+    "keywords": ["how to create task", "add task", "new work order", "assign task"],
+    "questions": [
+      "How do I create a new task?",
+      "How to assign work orders to farm workers?",
+      "Where do I add farmer tasks?"
+    ],
+    "answer": "**How to Create a Farmer Work Order:**\n1. Open **Farmer Tasks** from the navigation sidebar.\n2. Click the **+ New task** button.\n3. Enter the task title (e.g. 'Calibrate pH probe' or 'Prune lower leaves'), select the assigned staff member (Diego, Maria, Kwame, Li Wei, Priya), greenhouse location, priority (High/Normal/Low), and due date/time.\n4. Save the work order. It will appear on the farmer's schedule and alert them if overdue."
+  },
+  {
+    "id": "kb-how-to-harvest",
+    "category": "platform_operations",
+    "keywords": ["how to log harvest", "record harvest", "log yield", "harvest batch"],
+    "questions": [
+      "How do I log a harvest?",
+      "How to record harvested weight?",
+      "Where do I enter crop harvest results?"
+    ],
+    "answer": "**How to Log a Completed Harvest:**\n1. Go to **Harvest Management** in the sidebar.\n2. Click the **+ Log harvest** button.\n3. Select the target crop batch (e.g. `[B-101]`). The system auto-fills the estimated kg.\n4. Input the **Actual kg harvested**, select the **Quality Grade** (Grade A for premium wholesale, Grade B for retail pack, Grade C for processing), and add any field observations.\n5. Click **Save harvest record**. The batch will update its stage and yield metrics will reflect in Yield Analytics."
+  },
+  {
+    "id": "kb-how-to-reorder",
+    "category": "platform_operations",
+    "keywords": ["how to reorder", "reorder threshold", "inventory replenishment", "buy supplies"],
+    "questions": [
+      "How does the reorder system work?",
+      "How do I know when to reorder inventory?",
+      "Where can I see low supplies?"
+    ],
+    "answer": "**Smart Inventory Reorder Protocol:**\n• The platform actively checks every inventory item's stock against its minimum safety threshold: `qty < threshold`.\n• When quantity drops below threshold, an automatic **Below Reorder Threshold** badge and smart alert are created.\n• You can ask the Farm Assistant *'Which inventory items should I reorder?'* at any time for an instant list of supplies needing replenishment."
+  }
+]
