@@ -24,11 +24,14 @@ Hydrobot.Ai provides a single-page application (SPA) dashboard paired with a Nod
 
 ### 🏢 1. Core Farm Operations
 - **Dashboard:** Farmwide KPIs including total active plants, active greenhouse bays, average plant health index, and projected harvest revenue.
+  <img width="2852" height="1456" alt="image" src="https://github.com/user-attachments/assets/b9d0cd06-af58-440b-a39f-7a5741ea8677" />
+  
 - **Plant Management:** Track crop batches (`[B-101]`), varieties, growth stages (Seedling, Vegetative, Flowering, Ready, Harvested), canopy zones, and health scores.
 - **Greenhouse Management:** Real-time environmental telemetry for each greenhouse bay (pH, Electrical Conductivity (EC), temperature, humidity, reservoir water level, CO₂). Includes target tolerance ranges and reset options.
 - **Harvest Management:** Log actual harvested kilograms, compute yield variance against estimates, and assign quality grades (Grade A wholesale, Grade B retail, Grade C processing).
 - **Farmer Tasks:** Work order dispatch system with priority levels (High, Normal, Low), assignee filters (Diego, Maria, Kwame, Li Wei, Priya), overdue warnings, and completion toggles.
 - **Smart Inventory:** Supply tracking for seeds, nutrient salts, growing media, packaging, and pest control with automatic safety reorder thresholds (`qty < threshold`).
+
 
 ### 🧠 2. Agricultural AI & Intelligence
 - **Hybrid Farm Assistant:** Natural language assistant supporting instant local data retrieval, structured knowledge base answers, and Google Gemini AI responses with web grounding citations.
