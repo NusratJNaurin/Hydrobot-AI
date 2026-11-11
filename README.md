@@ -145,7 +145,7 @@ When deploying **Hydrobot.Ai** to Vercel:
 ## 🚦 Quickstart & Local Setup
 
 ### Prerequisites
-- **Node.js**: Version 18.0.0 or higher
+- **Node.js**: Version 20.x or higher
 - **npm**: Included with Node.js
 
 ### 1. Installation
