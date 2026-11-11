@@ -80,7 +80,7 @@ const PEOPLE = [
   { id: 'p5', name: 'Priya Nair', role: 'Farm Worker' },
 ];
 const ROLES = {
-  'Farm Owner': { name: 'Jordan Reyes', perms: ['batches', 'targets', 'tasks', 'inventory', 'finance', 'sales', 'commands', 'harvest'] },
+  'Farm Owner': { name: 'Jaecim Adaya', perms: ['batches', 'targets', 'tasks', 'inventory', 'finance', 'sales', 'commands', 'harvest'] },
   'Farm Manager': { name: 'Diego Alvarez', perms: ['batches', 'targets', 'tasks', 'inventory', 'sales', 'commands', 'harvest', 'financeView'] },
   'Farm Worker': { name: 'Maria Santos', perms: ['harvest'] },
 };
