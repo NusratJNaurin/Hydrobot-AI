@@ -1071,7 +1071,7 @@ function vAssistant() {
   ];
   return `${pageHead('Farm Assistant', 'Your agriculture and farm operations assistant. Instant data retrieval for farm records, and AI intelligence for agricultural guidance and technology recommendations.')}
   
-  ${card('Conversation', `<div class="chat" id="chatLog" aria-live="polite">${ui.chat.length ? ui.chat.map(m => `<div class="msg ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.text) : linkify(m.text)}${m.role !== 'user' ? `<span class="src">${m.src === 'gemini' ? '<span class="tag live">Gemini AI</span>' : m.src === 'direct' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Direct Data (Instant)</span>' : m.src === 'kb' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Knowledge Base (Instant)</span>' : m.src === 'claude' ? '<span class="tag live">Claude</span>' : m.src === 'pending' ? '<span class="tag">Thinking…</span>' : '<span class="tag sim">Simulated</span>'}</span>` : ''}${m.sources && m.sources.length ? `<div class="sources small muted" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span style="width:100%;font-weight:600">Web Sources:</span>${m.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener" class="tag sm" style="text-decoration:underline">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}</div>`).join('') : empty('chat', 'Ask a question about your farm or agriculture', 'Try one of the suggestions below.')}</div>
+  ${card('Conversation', `<div class="chat" id="chatLog" aria-live="polite">${ui.chat.length ? ui.chat.map(m => `<div class="msg ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.text) : linkify(m.text)}${m.role !== 'user' ? `<span class="src">${m.src === 'gemini' ? '<span class="tag live">Gemini AI</span>' : m.src === 'direct' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Direct Data (Instant)</span>' : m.src === 'kb' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Knowledge Base (Instant)</span>' : m.src === 'claude' ? '<span class="tag live">Claude</span>' : m.src === 'error' ? '<span class="tag warn">API Error</span>' : m.src === 'pending' ? '<span class="tag">Thinking…</span>' : '<span class="tag sim">Simulated</span>'}</span>` : ''}${m.sources && m.sources.length ? `<div class="sources small muted" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span style="width:100%;font-weight:600">Web Sources:</span>${m.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener" class="tag sm" style="text-decoration:underline">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}</div>`).join('') : empty('chat', 'Ask a question about your farm or agriculture', 'Try one of the suggestions below.')}</div>
     <div class="toolbar" style="margin:12px 0">${sugg.map(s => `<button class="btn sm" data-act="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
     <form id="chatForm" class="toolbar" novalidate><label class="sr" for="chatIn">Your question</label><input id="chatIn" class="input grow" placeholder="e.g. Which supplies are low, or how does NFT hydroponics work?" autocomplete="off" ${ui.chatBusy ? 'disabled' : ''}><button class="btn primary" type="submit" ${ui.chatBusy ? 'disabled' : ''}>${ui.chatBusy ? '<span class="spinner"></span>' : ic('send')}Send</button>${ui.chat.length ? '<button class="btn" type="button" data-act="chat-clear">Clear</button>' : ''}</form>`)}`;
 }
@@ -1406,29 +1406,18 @@ async function ask(q) {
       body: JSON.stringify({ question: q, farmContext: farmContext(), history })
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.text) throw { code: result.code || 'request_failed', message: result.error || 'API request failed.' };
-    bot.text = result.text;
-    bot.src = 'gemini';
-    bot.sources = result.sources || [];
-  } catch (e) {
-    if (ui.sample) {
-      try {
-        const turns = [
-          { role: 'user', content: `You are Hydrobot.Ai, an agricultural and hydroponic farming assistant. Answer this farming or agricultural query:\n\nFARM CONTEXT:\n${farmContext()}` },
-          { role: 'assistant', content: 'Understood. I will provide practical agricultural guidance and cite records when relevant.' }
-        ];
-        ui.chat.slice(0, -1).slice(-8).forEach(m => turns.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
-        const { text } = await ui.sample(turns, { cache: false, modelTier: 'quick', onText: ({ text }) => { bot.text = text; bot.src = 'claude'; const el = $$('#chatLog .msg.bot').pop(); if (el) el.innerHTML = linkify(text) + '<span class="src"><span class="tag live">Claude</span></span>'; } });
-        bot.text = text;
-        bot.src = 'claude';
-      } catch (ce) {
-        bot.text = simulatedAnswer(q);
-        bot.src = 'sim';
-      }
+    if (!response.ok || !result.text) {
+      const errText = result.error || 'API request failed.';
+      bot.text = `⚠️ **Gemini API Error:** ${errText}`;
+      bot.src = 'error';
     } else {
-      bot.text = simulatedAnswer(q);
-      bot.src = 'sim';
+      bot.text = result.text;
+      bot.src = 'gemini';
+      bot.sources = result.sources || [];
     }
+  } catch (e) {
+    bot.text = `⚠️ **Gemini API Error:** ${e.message || 'Could not connect to the assistant server.'}`;
+    bot.src = 'error';
   }
 
   ui.chatBusy = false;

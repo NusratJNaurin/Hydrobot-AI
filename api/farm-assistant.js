@@ -2,6 +2,35 @@
 
 const { GoogleGenAI } = require('@google/genai');
 
+function parseGeminiError(error) {
+  let message = error.message || 'Gemini API call failed.';
+  let code = error.code || 'provider_error';
+  let status = error.status || 500;
+
+  if (typeof message === 'string' && message.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.error && parsed.error.message) {
+        message = parsed.error.message;
+      }
+      if (parsed.error && parsed.error.status) {
+        if (parsed.error.status === 'INVALID_ARGUMENT' || message.includes('API key')) {
+          code = 'api_key_invalid';
+          status = 400;
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
+    message = 'API key not valid. Please check or select a valid API key in Settings > Secrets (or set GEMINI_API_KEY in .env).';
+    code = 'api_key_invalid';
+    status = 400;
+  }
+
+  return { message, code, status };
+}
+
 async function answerFarmQuestion(body) {
   const question = typeof body.question === 'string' ? body.question.trim() : '';
   if (!question) {
@@ -17,7 +46,7 @@ async function answerFarmQuestion(body) {
 
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
-    const err = new Error('GEMINI_API_KEY is not configured on the server.');
+    const err = new Error('GEMINI_API_KEY is not configured on the server. Please set a valid API key in Settings > Secrets or .env.');
     err.status = 503;
     err.code = 'not_configured';
     throw err;
@@ -98,10 +127,10 @@ ${records}`;
 
     return { text, sources };
   } catch (error) {
-    const detail = error.message || 'Gemini API call failed.';
-    const err = new Error(detail);
-    err.status = error.status || 500;
-    err.code = error.code || 'provider_error';
+    const parsed = parseGeminiError(error);
+    const err = new Error(parsed.message);
+    err.status = parsed.status;
+    err.code = parsed.code;
     throw err;
   }
 }
@@ -132,9 +161,10 @@ module.exports = async function handler(req, res) {
     const data = await answerFarmQuestion(body);
     res.status(200).json(data);
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || 'The assistant request failed.',
-      code: error.code || 'server_error',
+    const parsed = parseGeminiError(error);
+    res.status(parsed.status || 500).json({
+      error: parsed.message || 'The assistant request failed.',
+      code: parsed.code || 'server_error',
     });
   }
 };

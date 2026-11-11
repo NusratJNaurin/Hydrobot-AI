@@ -61,6 +61,35 @@ function readBody(req) {
   });
 }
 
+function parseGeminiError(error) {
+  let message = error.message || 'Gemini API call failed.';
+  let code = error.code || 'provider_error';
+  let status = error.status || 500;
+
+  if (typeof message === 'string' && message.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.error && parsed.error.message) {
+        message = parsed.error.message;
+      }
+      if (parsed.error && parsed.error.status) {
+        if (parsed.error.status === 'INVALID_ARGUMENT' || message.includes('API key')) {
+          code = 'api_key_invalid';
+          status = 400;
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
+    message = 'API key not valid. Please check or select a valid API key in Settings > Secrets (or set GEMINI_API_KEY in .env).';
+    code = 'api_key_invalid';
+    status = 400;
+  }
+
+  return { message, code, status };
+}
+
 const { GoogleGenAI } = require('@google/genai');
 
 async function answerFarmQuestion(body) {
@@ -69,7 +98,7 @@ async function answerFarmQuestion(body) {
   if (question.length > 2000) throw Object.assign(new Error('The question is too long.'), { status: 400 });
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
-    throw Object.assign(new Error('GEMINI_API_KEY is not configured on the server.'), { status: 503, code: 'not_configured' });
+    throw Object.assign(new Error('GEMINI_API_KEY is not configured on the server. Please set a valid API key in Settings > Secrets or .env.'), { status: 503, code: 'not_configured' });
   }
 
   const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
@@ -142,8 +171,8 @@ ${records}`;
 
     return { text, sources };
   } catch (error) {
-    const detail = error.message || 'Gemini API call failed.';
-    throw Object.assign(new Error(detail), { status: error.status || 500, code: error.code || 'provider_error' });
+    const parsed = parseGeminiError(error);
+    throw Object.assign(new Error(parsed.message), { status: parsed.status, code: parsed.code });
   }
 }
 
@@ -166,7 +195,8 @@ const server = http.createServer(async (req, res) => {
       const data = await answerFarmQuestion(body);
       sendJson(res, 200, data);
     } catch (error) {
-      sendJson(res, error.status || 500, { error: error.message || 'The assistant request failed.', code: error.code || 'server_error' });
+      const parsed = parseGeminiError(error);
+      sendJson(res, parsed.status || 500, { error: parsed.message || 'The assistant request failed.', code: parsed.code || 'server_error' });
     }
     return;
   }
