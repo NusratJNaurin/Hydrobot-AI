@@ -1,36 +1,9 @@
 'use strict';
 
-const fs = require('node:fs');
-const path = require('node:path');
 const { GoogleGenAI } = require('@google/genai');
 
-const ROOT = path.resolve(__dirname, '..');
-
-function loadEnv() {
-  const envFile = path.join(ROOT, '.env');
-  const exampleFile = path.join(ROOT, '.env.example');
-
-  const parseFile = (file) => {
-    if (!fs.existsSync(file)) return;
-    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-      const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-      if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
-      }
-    }
-  };
-
-  parseFile(envFile);
-  parseFile(exampleFile);
-
-  if (!fs.existsSync(envFile) && fs.existsSync(exampleFile)) {
-    try {
-      fs.copyFileSync(exampleFile, envFile);
-    } catch (e) {}
-  }
-}
-
-loadEnv();
+// On Vercel, GEMINI_API_KEY comes from Project Settings > Environment Variables.
+// For local testing, run `vercel dev` with a .env.local file (never commit it).
 
 function parseGeminiError(error) {
   let message = error.message || 'Gemini API call failed.';
@@ -43,17 +16,15 @@ function parseGeminiError(error) {
       if (parsed.error && parsed.error.message) {
         message = parsed.error.message;
       }
-      if (parsed.error && parsed.error.status) {
-        if (parsed.error.status === 'INVALID_ARGUMENT' || message.includes('API key')) {
-          code = 'api_key_invalid';
-          status = 400;
-        }
+      if (parsed.error && parsed.error.status === 'INVALID_ARGUMENT') {
+        status = 400;
+        code = message.includes('API key') ? 'api_key_invalid' : 'invalid_request';
       }
     } catch (e) {}
   }
 
   if (message.includes('API key not valid') || message.includes('API_KEY_INVALID')) {
-    message = 'API key not valid. Please check or select a valid API key in Settings > Secrets (or set GEMINI_API_KEY in .env).';
+    message = 'API key not valid. Check GEMINI_API_KEY in your Vercel Environment Variables, then redeploy.';
     code = 'api_key_invalid';
     status = 400;
   }
@@ -61,32 +32,32 @@ function parseGeminiError(error) {
   return { message, code, status };
 }
 
+function httpError(message, status, code) {
+  const err = new Error(message);
+  err.status = status;
+  err.code = code;
+  return err;
+}
+
 async function answerFarmQuestion(body) {
   const question = typeof body.question === 'string' ? body.question.trim() : '';
-  if (!question) {
-    const err = new Error('A question is required.');
-    err.status = 400;
-    throw err;
-  }
-  if (question.length > 2000) {
-    const err = new Error('The question is too long.');
-    err.status = 400;
-    throw err;
-  }
+  if (!question) throw httpError('A question is required.', 400, 'bad_request');
+  if (question.length > 2000) throw httpError('The question is too long.', 400, 'bad_request');
 
-  loadEnv();
   const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
-    const err = new Error('GEMINI_API_KEY is not configured on the server. Please set a valid API key in Settings > Secrets or .env.');
-    err.status = 503;
-    err.code = 'not_configured';
-    throw err;
+    throw httpError(
+      'GEMINI_API_KEY is not configured. Add it in Vercel > Settings > Environment Variables and redeploy.',
+      503,
+      'not_configured'
+    );
   }
 
   const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite'])).filter(Boolean);
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
-  const records = typeof body.farmContext === 'string' ? body.farmContext : '{}';
+  // Cap the client-supplied context so a huge payload can't burn tokens.
+  const records = typeof body.farmContext === 'string' ? body.farmContext.slice(0, 30000) : '{}';
 
   const systemInstruction = `You are Hydrobot.Ai, an intelligent, agriculture-focused assistant dedicated to supporting farmers, growers, and agricultural professionals.
 
@@ -118,14 +89,8 @@ SITE FEATURES:
 FARM RECORDS:
 ${records}`;
 
-  const ai = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
+  // Pin v1beta: systemInstruction and the Google Search tool are not enabled on the stable v1 API.
+  const ai = new GoogleGenAI({ apiKey, apiVersion: 'v1beta' });
 
   const contents = [
     ...history
@@ -168,29 +133,14 @@ ${records}`;
 
   if (lastError) {
     const parsed = parseGeminiError(lastError);
-    const err = new Error(parsed.message);
-    err.status = parsed.status;
-    err.code = parsed.code;
-    throw err;
+    throw httpError(parsed.message, parsed.status, parsed.code);
   }
 
-  const err = new Error('Gemini returned an empty response across all models.');
-  err.status = 502;
-  err.code = 'empty_response';
-  throw err;
+  throw httpError('Gemini returned an empty response across all models.', 502, 'empty_response');
 }
 
+// Same-origin on Vercel (site and /api share one domain), so no CORS headers are needed.
 module.exports = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed.' });
     return;
