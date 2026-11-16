@@ -3,6 +3,31 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const safeHttpUrl = raw => {
+  if (typeof raw !== 'string') return '';
+  try {
+    const u = new URL(raw.trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.toString() : '';
+  } catch { return ''; }
+};
+const safeImgSrc = raw => {
+  if (typeof raw !== 'string') return '';
+  const s = raw.trim();
+  if (/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(s)) return s;
+  if (/^blob:https?:\/\//i.test(s)) return s;
+  if (/^\/assets\/[A-Za-z0-9/_.-]+\.(jpg|jpeg|png|webp)$/i.test(s)) return s;
+  return '';
+};
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+function validateImageUpload(file) {
+  if (!file || !ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Only JPEG, PNG, or WebP images are allowed.');
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new Error('Image must be 15 MB or smaller.');
+  }
+}
 const DAY = 864e5;
 const TODAY = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
 const iso = d => { const z = new Date(d); return z.getFullYear() + '-' + String(z.getMonth() + 1).padStart(2, '0') + '-' + String(z.getDate()).padStart(2, '0'); };
@@ -304,18 +329,32 @@ function errText(e) {
   if (c === 'invalid_argument') return 'Your sharing level does not allow saving changes here. Ask the farm owner for Contributor access.';
   if (c === 'storage_full') return 'This browser could not store the change. Free some space or allow site data, then try again.';
   if (c === 'revoked') return 'Access to this farm was withdrawn. Reload the page to continue.';
+  if (e && typeof e.message === 'string' && e.message.trim()) return e.message.trim();
   return 'The change could not be saved. Check your connection and try again.';
 }
 
 /* ================= State ================= */
 const ui = {
-  route: 'dashboard', role: 'Farm Owner', farm: 'hydrovest', trendRange: 30,
+  route: 'dashboard', role: 'Farm Worker', farm: 'hydrovest', trendRange: 30,
   ghMetric: 'temp', ghRange: '24h', plantF: { q: '', gh: '', stage: '' }, taskF: { q: '', gh: '', who: '', pri: '', status: 'Open', when: 'all' },
   invCat: 'All', invQ: '', showResolved: false, calMonth: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1), saleF: '',
   nutGh: 'gh-d', chat: [], chatBusy: false, disease: null, sample: null, sampleImages: false, fcRange: 56,
 };
-try { const r = localStorage.getItem('hydrobot.role'); if (r && ROLES[r]) ui.role = r; } catch (e) { }
-const currentUser = () => ({ name: ROLES[ui.role].name, role: ui.role });
+const AUTH_ROLE_MAP = { owner: 'Farm Owner', manager: 'Farm Manager', worker: 'Farm Worker' };
+function syncUiRoleFromAuth() {
+  if (typeof AuthState !== 'undefined' && !AuthState.isDemoAuth) {
+    const mapped = AuthState.session ? (AUTH_ROLE_MAP[AuthState.role] || 'Farm Worker') : 'Farm Worker';
+    if (ROLES[mapped]) ui.role = mapped;
+  }
+}
+const currentUser = () => {
+  if (typeof AuthState !== 'undefined' && AuthState.session && !AuthState.isDemoAuth && AuthState.user) {
+    const mappedRole = AUTH_ROLE_MAP[AuthState.role] || 'Farm Worker';
+    const name = AuthState.profile?.full_name || AuthState.user.user_metadata?.full_name || AuthState.profile?.email || AuthState.user.email || ROLES[mappedRole]?.name || 'User';
+    return { name, role: mappedRole };
+  }
+  return { name: ROLES[ui.role].name, role: ui.role };
+};
 const can = p => ROLES[ui.role].perms.includes(p);
 
 /* ================= Derived farm data ================= */
@@ -495,17 +534,32 @@ function initScrollAnimations() {
 }
 
 /* ================= Supabase Auth & Role Management ================= */
-const supabaseUrl = window.SUPABASE_URL || '';
-const supabaseAnonKey = window.SUPABASE_ANON_KEY || '';
-const isSupabaseConfigured = window.supabase && supabaseUrl && supabaseUrl !== 'https://your-project.supabase.co' && supabaseUrl !== '';
-const sbClient = isSupabaseConfigured ? window.supabase.createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabaseUrl = (window.SUPABASE_URL || '').trim();
+const supabaseAnonKey = (window.SUPABASE_ANON_KEY || '').trim();
+const isSupabaseConfigured = Boolean(
+  window.supabase &&
+  supabaseUrl &&
+  supabaseUrl !== 'https://your-project.supabase.co' &&
+  supabaseAnonKey &&
+  supabaseAnonKey !== 'your-anon-key'
+);
+const sbClient = isSupabaseConfigured ? window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  }
+}) : null;
 
 const AuthState = {
   session: null,
   user: null,
+  profile: null,
   farms: [],
+  farmMembers: [],
+  equipmentCommands: [],
   currentFarmId: 'riverside',
-  role: 'owner', // 'owner' | 'manager' | 'worker'
+  role: 'worker', // least privilege until membership resolves
   authView: 'welcome',
   loading: false,
   error: '',
@@ -513,18 +567,64 @@ const AuthState = {
   isDemoAuth: !isSupabaseConfigured
 };
 
+if (AuthState.isDemoAuth) {
+  ui.role = 'Farm Owner';
+  AuthState.role = 'owner';
+  try { const r = localStorage.getItem('hydrobot.role'); if (r && ROLES[r]) ui.role = r; } catch (e) { }
+}
+
+function resetSensitiveStateOnSignOut() {
+  AuthState.session = null;
+  AuthState.user = null;
+  AuthState.profile = null;
+  AuthState.farms = [];
+  AuthState.farmMembers = [];
+  AuthState.equipmentCommands = [];
+  AuthState.role = AuthState.isDemoAuth ? 'owner' : 'worker';
+  AuthState.authView = 'welcome';
+  ui.chat = [];
+  ui.disease = null;
+  if (!AuthState.isDemoAuth) {
+    ui.role = 'Farm Worker';
+    COLS.forEach(c => { if (Store.data) Store.data[c] = {}; });
+    try {
+      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem('hydrobot.role');
+    } catch (e) {}
+  }
+}
+
+function activeFarmName() {
+  const f = AuthState.farms.find(x => x.farmId === AuthState.currentFarmId);
+  if (f) return f.name;
+  return ui.farm === 'hilltop' ? 'Hilltop Annex' : 'Riverside Hydro Farm';
+}
+
 async function initAuth() {
   if (sbClient) {
+    const hashStr = location.hash || '';
+    const isRecoveryHash = hashStr.includes('type=recovery');
     const { data: { session } } = await sbClient.auth.getSession();
     AuthState.session = session;
     AuthState.user = session?.user || null;
-    if (session) await loadUserFarms();
+    if (isRecoveryHash) AuthState.authView = 'reset';
+    if (session && AuthState.authView !== 'reset') await loadUserFarms();
+    if (hashStr.includes('access_token=') || hashStr.includes('refresh_token=')) {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    }
 
-    sbClient.auth.onAuthStateChange(async (event, session) => {
-      AuthState.session = session;
-      AuthState.user = session?.user || null;
-      if (event === 'PASSWORD_RECOVERY') AuthState.authView = 'reset';
-      if (session) await loadUserFarms();
+    sbClient.auth.onAuthStateChange(async (event, nextSession) => {
+      if (event === 'SIGNED_OUT' || !nextSession) {
+        resetSensitiveStateOnSignOut();
+      } else {
+        AuthState.session = nextSession;
+        AuthState.user = nextSession?.user || null;
+        if (event === 'PASSWORD_RECOVERY') {
+          AuthState.authView = 'reset';
+        } else if (AuthState.authView !== 'reset') {
+          await loadUserFarms();
+        }
+      }
       render();
     });
   } else {
@@ -533,25 +633,98 @@ async function initAuth() {
   }
 }
 
+async function loadUserProfile() {
+  if (!sbClient || !AuthState.user) return null;
+  try {
+    const { data, error } = await sbClient.from('profiles').select('*');
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    AuthState.profile = rows.find(p => p.id === AuthState.user.id) || rows[0] || null;
+  } catch (e) {
+    console.warn('profiles RLS query skipped:', e?.message || e);
+    AuthState.profile = null;
+  }
+  return AuthState.profile;
+}
+
+async function loadEquipmentCommands() {
+  if (!sbClient || !AuthState.user || AuthState.isDemoAuth) return [];
+  try {
+    const { data, error } = await sbClient
+      .from('equipment_commands')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(25);
+    if (error) throw error;
+    AuthState.equipmentCommands = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn('equipment_commands RLS query skipped:', e?.message || e);
+    AuthState.equipmentCommands = [];
+  }
+  return AuthState.equipmentCommands;
+}
+
+async function logEquipmentCommand({ device, command, maxRuntimeMinutes = 0 }) {
+  if (!sbClient || !AuthState.session || AuthState.isDemoAuth) return { skipped: true };
+  const { data, error } = await sbClient
+    .from('equipment_commands')
+    .insert({
+      farm_id: AuthState.currentFarmId,
+      device,
+      command,
+      max_runtime_minutes: maxRuntimeMinutes,
+      requested_by: AuthState.user?.id || null,
+      status: 'queued',
+    })
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  if (data) AuthState.equipmentCommands = [data, ...AuthState.equipmentCommands].slice(0, 25);
+  else await loadEquipmentCommands();
+  return { data };
+}
+
 async function loadUserFarms() {
   if (!sbClient || !AuthState.user) return;
   try {
-    const { data, error } = await sbClient
-      .from('farm_members')
-      .select('role, farms(id, name, location)')
-      .eq('user_id', AuthState.user.id);
-    if (error) throw error;
-    AuthState.farms = (data || []).map(m => ({ farmId: m.farms.id, name: m.farms.name, location: m.farms.location, role: m.role }));
+    const [, farmsRes, membersRes] = await Promise.all([
+      loadUserProfile(),
+      sbClient.from('farms').select('id, name, location'),
+      sbClient.from('farm_members').select('farm_id, user_id, role'),
+    ]);
+    if (farmsRes.error) throw farmsRes.error;
+    if (membersRes.error) throw membersRes.error;
+    AuthState.error = '';
+    const farmsRows = Array.isArray(farmsRes.data) ? farmsRes.data : [];
+    const memberRows = Array.isArray(membersRes.data) ? membersRes.data : [];
+    AuthState.farmMembers = memberRows;
+    const myRolesByFarm = new Map(
+      memberRows
+        .filter(m => m.user_id === AuthState.user.id)
+        .map(m => [m.farm_id, m.role])
+    );
+    AuthState.farms = farmsRows.map(f => ({
+      farmId: f.id,
+      name: f.name,
+      location: f.location,
+      role: myRolesByFarm.get(f.id) || 'worker',
+    }));
     if (AuthState.farms.length === 0) {
-      AuthState.authView = 'create_farm';
+      if (AuthState.authView !== 'reset') AuthState.authView = 'create_farm';
     } else {
-      AuthState.currentFarmId = AuthState.farms[0].farmId;
-      AuthState.role = AuthState.farms[0].role || 'worker';
+      const selected = AuthState.farms.find(f => f.farmId === AuthState.currentFarmId) || AuthState.farms[0];
+      AuthState.currentFarmId = selected.farmId;
+      AuthState.role = selected.role || 'worker';
       ui.farm = AuthState.currentFarmId;
+      syncUiRoleFromAuth();
+      if (AuthState.authView === 'create_farm' || AuthState.authView === 'signin' || AuthState.authView === 'signup') {
+        AuthState.authView = 'welcome';
+      }
+      await loadEquipmentCommands();
     }
   } catch (e) {
-    AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
-    AuthState.role = 'owner';
+    console.warn('Failed to load user farms from Supabase:', e);
+    AuthState.error = e?.message || 'Unable to load your farm memberships from Supabase.';
   }
 }
 
@@ -965,6 +1138,40 @@ function renderCreateFarmScreen() {
   `;
 }
 
+function createFarmModal() {
+  openModal({
+    title: 'Create a new farm',
+    submitLabel: 'Create farm',
+    body: `<div class="form-grid">
+      ${fld('Farm name', `<input id="mf-name" name="name" required placeholder="Riverside Hydro Farm">`, 'name')}
+      ${fld('Location / Sector', `<input id="mf-loc" name="location" required placeholder="Valley Sector A">`, 'location')}
+    </div>`,
+    validate: d => ({
+      name: !String(d.name || '').trim() && 'Enter a farm name.',
+      location: !String(d.location || '').trim() && 'Enter a location or sector.',
+    }),
+    submit: async d => {
+      const p_name = String(d.name || '').trim();
+      const p_location = String(d.location || '').trim();
+      if (sbClient && !AuthState.isDemoAuth) {
+        const { data, error } = await sbClient.rpc('create_farm', { p_name, p_location });
+        if (error) throw error;
+        const createdId = data?.id || data?.farm_id || (Array.isArray(data) ? data[0]?.id || data[0]?.farm_id : null);
+        if (createdId) AuthState.currentFarmId = createdId;
+        await loadUserFarms();
+      } else {
+        const id = 'farm-' + Date.now().toString(36);
+        AuthState.farms.push({ farmId: id, name: p_name, location: p_location, role: 'owner' });
+        AuthState.currentFarmId = id;
+        AuthState.role = 'owner';
+        ui.farm = id;
+      }
+      render();
+      return `Farm "${p_name}" created.`;
+    }
+  });
+}
+
 function renderAccessDeniedScreen() {
   return `
     <div class="card card-b reveal-on-scroll" style="text-align:center;padding:50px 20px;max-width:600px;margin:40px auto">
@@ -985,7 +1192,7 @@ function renderNav() {
   const cur = ROUTES[ui.route]?.parent || ui.route;
   const ac = Store.mode === 'loading' ? 0 : activeAlerts().filter(a => a.state === 'new').length;
   $('#nav').innerHTML = Object.entries(groups).map(([g, items]) => `<div class="nav-group" role="group" aria-labelledby="ng-${g.replace(/\W/g, '')}"><div class="nav-label" id="ng-${g.replace(/\W/g, '')}">${g}</div>${items.map(([k, r]) => `<a href="#${k}" ${cur === k ? 'aria-current="page"' : ''}>${ic(r.icon)}<span>${r.label}</span>${k === 'alerts' && ac ? `<span class="count" aria-label="${ac} new alerts">${ac}</span>` : ''}</a>`).join('')}</div>`).join('');
-  const userName = AuthState.user?.user_metadata?.full_name || AuthState.user?.email || 'User';
+  const userName = AuthState.profile?.full_name || AuthState.user?.user_metadata?.full_name || AuthState.user?.email || 'User';
   $('#sideFoot').innerHTML = `
     <div class="row"><b>${esc(userName)}</b> <span class="tag" style="text-transform:capitalize">${esc(AuthState.role)}</span></div>
     <div class="row"><span class="dot" style="background:var(--ok)"></span>Connected</div>
@@ -1002,9 +1209,16 @@ function renderTop() {
   }
   const u = currentUser();
   if ($('#profileBtn')) {
-    $('#profileBtn').innerHTML = `<span class="avatar">${u.name.split(' ').map(x => x[0]).join('')}</span><span class="who"><b>${esc(u.name)}</b><span>${esc(u.role)}</span></span>`;
+    $('#profileBtn').innerHTML = `<span class="avatar">${esc(u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase())}</span><span class="who"><b>${esc(u.name)}</b><span>${esc(u.role)}</span></span>`;
   }
-  if ($('#farmSel')) $('#farmSel').value = ui.farm;
+  if ($('#farmSel')) {
+    if (!AuthState.isDemoAuth && AuthState.farms.length) {
+      $('#farmSel').innerHTML = AuthState.farms.map(f => `<option value="${esc(f.farmId)}" ${f.farmId === AuthState.currentFarmId ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+      $('#farmSel').value = AuthState.currentFarmId;
+    } else {
+      $('#farmSel').value = ui.farm;
+    }
+  }
   if ($('#mobileUtilBtn')) {
     $('#mobileUtilBtn').innerHTML = ic('grid') + (n ? `<span class="badge-count" aria-hidden="true">${n}</span>` : '');
     $('#mobileUtilBtn').setAttribute('aria-label', `Quick utilities and menu${n ? `, ${n} new alerts` : ''}`);
@@ -1014,7 +1228,7 @@ function renderTop() {
 
 function render() {
   const view = $('#view');
-  const isSignedOut = !AuthState.session;
+  const isSignedOut = !AuthState.session || AuthState.authView === 'reset';
 
   if (isSignedOut) {
     window.LiveGardenUI?.dispose();
@@ -1304,7 +1518,18 @@ function vGhDetail(id) {
   const g = ghById(id), r = readings(id), t = targets(id), st = ghStatus(id), s = sensorDef(ui.ghMetric);
   const hist = history(id, s.k, ui.ghRange);
   const mr = manualReading(id);
-  const cmds = Store.all('commands').filter(c => c.ghId === id).sort((a, b) => b.at - a.at).slice(0, 6);
+  const remoteCmds = (!AuthState.isDemoAuth && AuthState.equipmentCommands.length)
+    ? AuthState.equipmentCommands
+        .filter(c => c.farm_id === AuthState.currentFarmId && (!c.device || String(c.device).startsWith(`${id}:`)))
+        .map(c => ({
+          at: new Date(c.created_at).getTime() || Date.now(),
+          label: `${c.device || 'Equipment'}: ${c.command || ''}`,
+          by: currentUser().name,
+          status: c.status || 'queued',
+        }))
+    : [];
+  const localCmds = Store.all('commands').filter(c => c.ghId === id);
+  const cmds = (remoteCmds.length ? remoteCmds : localCmds).sort((a, b) => b.at - a.at).slice(0, 6);
   const fmtX = at => ui.ghRange === '24h' ? new Date(at).toLocaleTimeString(undefined, { hour: 'numeric' }) : new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return `${pageHead(`${g.name} ${badge(st)}`, `${esc(ghCrops(id).join(', ') || 'No active crop')} · ${g.system} · ${g.area} m² · ${num(ghPlants(id))} plants`, `${DEMO_TAG}<span class="tag">Last update ${new Date(Date.now() - READ_AT[id] * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>`, `<div class="crumbs"><a href="#greenhouses">Greenhouses</a>${ic('chev')}<span>${g.name}</span></div>`)}
   <section class="readings" aria-label="Current readings">${SENSORS.map(x => { const ms = metricStatus(r[x.k], t[x.k]); return `<button class="card reading" style="text-align:left;cursor:pointer;${ui.ghMetric === x.k ? 'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)' : ''}" data-seg="ghMetric" data-val="${x.k}" aria-pressed="${ui.ghMetric === x.k}">
@@ -1323,9 +1548,9 @@ function vGhDetail(id) {
     <div class="grid" style="gap:20px;align-content:start">
     ${card('Sensor connections', `<div class="tbl-wrap"><table><thead><tr><th>Sensor</th><th>Status</th><th>Last update</th></tr></thead><tbody>${SENSORS.map(x => `<tr><td><b>${x.label}</b><div class="small muted">${x.model}</div></td><td><span class="badge b-mute">Simulated · not connected</span></td><td class="num small">${READ_AT[id]} min ago (demo)</td></tr>`).join('')}</tbody></table></div>
       <div class="toolbar" style="margin-top:12px"><button class="btn" data-act="reading-new" data-id="${id}">${ic('edit')}Log manual pH / EC reading</button><button class="btn" data-act="integration" data-id="sensor gateway">${ic('plug')}Connect devices</button></div>`)}
-    ${card('Equipment controls', `<div class="notice warn" style="margin-bottom:12px">${ic('alert')}<div>Every command needs your explicit confirmation. No controller is connected, so commands are logged but <b>not sent</b> to equipment.</div></div>
+    ${card('Equipment controls', `<div class="notice warn" style="margin-bottom:12px">${ic('alert')}<div>Every command needs your explicit confirmation. No controller is connected, so commands are logged${!AuthState.isDemoAuth ? ' to Supabase' : ''} but <b>not sent</b> to equipment.</div></div>
       <div style="display:grid;gap:8px">${DEVICES.map(d => `<div class="equip-row"><div class="split">${ic(d.icon)}<div><b>${d.label}</b><div class="small muted">${d.action}</div></div></div><button class="btn sm" data-act="command" data-gh="${id}" data-id="${d.k}" ${can('commands') ? '' : 'disabled title="Not available for Farm Worker role"'}>${ic('power')}Send command…</button></div>`).join('')}</div>
-      ${cmds.length ? `<h3 style="margin:14px 0 6px">Command log</h3><div class="tbl-wrap"><table><tbody>${cmds.map(c => `<tr><td class="small num">${fmtDT(c.at)}</td><td class="small">${esc(c.label)}<div class="muted">${esc(c.by)}</div></td><td><span class="badge b-warn">Not sent</span></td></tr>`).join('')}</tbody></table></div>` : ''}`)}
+      ${cmds.length ? `<h3 style="margin:14px 0 6px">Command log</h3><div class="tbl-wrap"><table><tbody>${cmds.map(c => `<tr><td class="small num">${fmtDT(c.at)}</td><td class="small">${esc(c.label)}<div class="muted">${esc(c.by)}</div></td><td><span class="badge ${c.status === 'queued' ? 'b-ok' : 'b-warn'}">${c.status === 'queued' ? 'Queued' : 'Not sent'}</span></td></tr>`).join('')}</tbody></table></div>` : ''}`)}
     </div>
   </div>
   ${card('Crop batches in this greenhouse', pipelineTable(activeBatches().filter(b => b.ghId === id)), { actions: can('batches') ? `<button class="btn sm" data-act="batch-new">${ic('plus')}Add batch</button>` : '' })}`;
@@ -1339,7 +1564,11 @@ function commandConfirm(ghId, devKey) {
       <label class="split" style="font-weight:600"><input type="checkbox" id="cmdAck" name="ack" style="width:18px;height:18px"> I have checked that nobody is working on this equipment.</label><p class="err" id="err-ack"></p>`,
     validate: dd => ({ ack: !dd.ack && 'Tick the safety check before sending a command.' }),
     submit: async () => {
-      await Store.put('commands', { id: uid('CMD'), ghId, device: devKey, label: `${d.label}: ${d.action}`, at: Date.now(), by: currentUser().name, status: 'not_sent' });
+      await Store.put('commands', { id: uid('CMD'), ghId, device: devKey, label: `${d.label}: ${d.action}`, at: Date.now(), by: currentUser().name, status: sbClient && !AuthState.isDemoAuth ? 'queued' : 'not_sent' });
+      if (sbClient && AuthState.session && !AuthState.isDemoAuth) {
+        await logEquipmentCommand({ device: `${ghId}:${devKey}`, command: d.action, maxRuntimeMinutes: devKey === 'pump' ? 5 : devKey === 'fans' ? 20 : 0 });
+        return { msg: `Command queued for ${g.name}.`, type: 'ok' };
+      }
       return { msg: 'Command logged but not sent: no controller is connected.', type: 'error' };
     }
   });
@@ -1444,15 +1673,15 @@ function taskForm(id) {
       ${fld('Priority', `<select id="k-pri" name="priority" ${editable ? '' : 'disabled'}>${['High', 'Medium', 'Low'].map(p => `<option ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}</select>`, 'priority')}
       ${fld('Repeats', `<select id="k-rec" name="recurrence" ${editable ? '' : 'disabled'}>${[['none', 'Does not repeat'], ['daily', 'Daily'], ['weekly', 'Weekly']].map(([v, l]) => `<option value="${v}" ${t.recurrence === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`, 'recurrence', 'Completing a repeating task schedules the next one.')}
       <div class="full">${fld('Notes', `<textarea id="k-notes" name="notes">${esc(t.notes || '')}</textarea>`, 'notes')}</div>
-      <div class="full field"><label for="k-photo">Photo attachment</label><div class="photo-prev" id="k-prev">${photo ? `<img src="${photo}" alt="Task photo">` : ''}<input id="k-photo" type="file" accept="image/*"><button type="button" class="btn sm" id="k-photo-rm" ${photo ? '' : 'hidden'}>Remove photo</button></div><span class="hint">Photos are resized to 640 px before saving.</span><p class="err" id="err-photo"></p></div>
+      <div class="full field"><label for="k-photo">Photo attachment</label><div class="photo-prev" id="k-prev">${safeImgSrc(photo) ? `<img src="${esc(safeImgSrc(photo))}" alt="Task photo">` : ''}<input id="k-photo" type="file" accept="image/jpeg,image/png,image/webp"><button type="button" class="btn sm" id="k-photo-rm" ${safeImgSrc(photo) ? '' : 'hidden'}>Remove photo</button></div><span class="hint">Photos are resized to 640 px before saving.</span><p class="err" id="err-photo"></p></div>
     </div>`,
     onOpen: m => {
       const inp = $('#k-photo', m);
       inp.onchange = async () => {
         const file = inp.files[0]; if (!file) return;
         $('#err-photo', m).textContent = '';
-        try { photo = await downscale(file, 640); $('#k-prev img', m)?.remove(); $('#k-prev', m).insertAdjacentHTML('afterbegin', `<img src="${photo}" alt="Task photo">`); $('#k-photo-rm', m).hidden = false; }
-        catch (e) { $('#err-photo', m).textContent = 'That file could not be read as an image. Choose a JPEG or PNG photo.'; }
+        try { validateImageUpload(file); photo = await downscale(file, 640); $('#k-prev img', m)?.remove(); $('#k-prev', m).insertAdjacentHTML('afterbegin', `<img src="${esc(safeImgSrc(photo))}" alt="Task photo">`); $('#k-photo-rm', m).hidden = false; }
+        catch (e) { inp.value = ''; $('#err-photo', m).textContent = e?.message || 'That file could not be read as an image. Choose a JPEG, PNG, or WebP photo.'; }
       };
       $('#k-photo-rm', m).onclick = () => { photo = ''; $('#k-prev img', m)?.remove(); $('#k-photo-rm', m).hidden = true; inp.value = ''; };
     },
@@ -1586,7 +1815,7 @@ function vDisease() {
   <div class="notice warn">${ic('alert')}<div><b>Preliminary assessment only.</b> Results are not a diagnosis. Confirm any suspected disease by physical inspection and, where needed, a lab test.</div></div>
   <div class="grid g-2">
     ${card('Plant photo', `<div class="drop" id="dropZone"><span class="chip-ico">${ic('camera')}</span><b>Drop a leaf or plant photo here</b><span class="small muted">JPEG or PNG, taken in daylight, close to the affected area</span><label class="btn" for="dFile">${ic('upload')}Choose photo</label><input id="dFile" type="file" accept="image/jpeg,image/png,image/webp" class="sr"></div>
-      ${d?.img ? `<img class="thumb" src="${d.img}" alt="Uploaded plant photo" style="margin-top:12px">` : ''}
+      ${safeImgSrc(d?.img) ? `<img class="thumb" src="${esc(safeImgSrc(d.img))}" alt="Uploaded plant photo" style="margin-top:12px">` : ''}
       <div class="form-grid" style="margin-top:12px">${fld('Crop batch', `<select id="dBatch">${activeBatches().map(b => `<option value="${b.id}" ${d?.batchId === b.id ? 'selected' : ''}>${b.id} · ${CROPS[b.crop].label} · ${ghById(b.ghId).code}${b.zone.slice(1)}</option>`).join('')}</select>`, 'dBatch')}</div>
       <div class="toolbar" style="margin-top:12px"><button class="btn primary" data-act="disease-run" ${d?.img && !d.busy ? '' : 'disabled'}>${d?.busy === 'sim' ? '<span class="spinner"></span>Analyzing…' : 'Run simulated check'}</button>${connected ? `<button class="btn" data-act="disease-claude" ${d?.img && !d.busy ? '' : 'disabled'}>${d?.busy === 'claude' ? '<span class="spinner"></span>Asking Claude…' : ic('spark') + 'Analyze with Claude'}</button>` : ''}</div>
       ${!connected ? '<p class="small muted" style="margin-top:10px">Connected image analysis needs the Claude viewer. It is not available in this view, so only the simulated check runs.</p>' : ''}`)}
@@ -1629,7 +1858,12 @@ Look at the attached image and give a cautious, preliminary assessment (not a di
   d.busy = null; render();
 }
 async function loadDiseaseFile(file) {
-  if (!file || !file.type.startsWith('image/')) { ui.disease = { error: 'That file is not an image. Choose a JPEG, PNG or WebP photo.' }; return render(); }
+  try {
+    validateImageUpload(file);
+  } catch (e) {
+    ui.disease = { error: e?.message || 'Choose a JPEG, PNG, or WebP photo under 15 MB.' };
+    return render();
+  }
   try {
     const img = await downscale(file, 800);
     const el = new Image(); el.src = img; await el.decode();
@@ -1654,7 +1888,10 @@ function vAssistant() {
   ];
   return `${pageHead('Farm Assistant', 'Your agriculture and farm operations assistant. Instant data retrieval for farm records, and AI intelligence for agricultural guidance and technology recommendations.')}
   
-  ${card('Conversation', `<div class="chat" id="chatLog" aria-live="polite">${ui.chat.length ? ui.chat.map(m => `<div class="msg ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.text) : linkify(m.text)}${m.role !== 'user' ? `<span class="src">${m.src === 'gemini' ? '<span class="tag live">Gemini AI</span>' : m.src === 'direct' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Direct Data (Instant)</span>' : m.src === 'kb' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Knowledge Base (Instant)</span>' : m.src === 'claude' ? '<span class="tag live">Claude</span>' : m.src === 'error' ? '<span class="tag warn">API Error</span>' : m.src === 'pending' ? '<span class="tag">Thinking…</span>' : '<span class="tag sim">Simulated</span>'}</span>` : ''}${m.sources && m.sources.length ? `<div class="sources small muted" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span style="width:100%;font-weight:600">Web Sources:</span>${m.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener" class="tag sm" style="text-decoration:underline">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}</div>`).join('') : empty('chat', 'Ask a question about your farm or agriculture', 'Try one of the suggestions below.')}</div>
+  ${card('Conversation', `<div class="chat" id="chatLog" aria-live="polite">${ui.chat.length ? ui.chat.map(m => {
+    const safeSources = Array.isArray(m.sources) ? m.sources.map(s => ({ uri: safeHttpUrl(s?.uri), title: s?.title || s?.uri })).filter(s => s.uri) : [];
+    return `<div class="msg ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.text) : linkify(m.text)}${m.role !== 'user' ? `<span class="src">${m.src === 'gemini' ? '<span class="tag live">Gemini AI</span>' : m.src === 'direct' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Direct Data (Instant)</span>' : m.src === 'kb' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Knowledge Base (Instant)</span>' : m.src === 'claude' ? '<span class="tag live">Claude</span>' : m.src === 'error' ? '<span class="tag warn">API Error</span>' : m.src === 'pending' ? '<span class="tag">Thinking…</span>' : '<span class="tag sim">Simulated</span>'}</span>` : ''}${safeSources.length ? `<div class="sources small muted" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span style="width:100%;font-weight:600">Web Sources:</span>${safeSources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener noreferrer" class="tag sm" style="text-decoration:underline">${esc(s.title)}</a>`).join('')}</div>` : ''}</div>`;
+  }).join('') : empty('chat', 'Ask a question about your farm or agriculture', 'Try one of the suggestions below.')}</div>
     <div class="assistant-prompts">${sugg.map(s => `<button class="btn sm wrap" data-act="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
     <form id="chatForm" class="toolbar" novalidate><label class="sr" for="chatIn">Your question</label><input id="chatIn" class="input grow" placeholder="e.g. Which supplies are low, or how does NFT hydroponics work?" autocomplete="off" ${ui.chatBusy ? 'disabled' : ''}><button class="btn primary" type="submit" ${ui.chatBusy ? 'disabled' : ''}>${ui.chatBusy ? '<span class="spinner"></span>' : ic('send')}Send</button>${ui.chat.length ? '<button class="btn" type="button" data-act="chat-clear">Clear</button>' : ''}</form>`)}`;
 }
@@ -1983,9 +2220,13 @@ async function ask(q) {
 
   try {
     const history = ui.chat.slice(0, -1).slice(-8).filter(m => m.role !== 'bot' || m.src !== 'pending').map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: m.text }));
+    const headers = { 'Content-Type': 'application/json' };
+    if (!AuthState.isDemoAuth && AuthState.session?.access_token) {
+      headers.Authorization = `Bearer ${AuthState.session.access_token}`;
+    }
     const response = await fetch('/api/farm-assistant', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ question: q, farmContext: farmContext(), history })
     });
     const result = await response.json().catch(() => ({}));
@@ -2157,7 +2398,7 @@ function openModal(cfg) {
   const m = $('#modal'); modalCfg = cfg;
   if (m.open) m.close();
   m.className = cfg.wide ? 'wide' : '';
-  m.innerHTML = `<form id="modalForm" novalidate><div class="m-h"><h2 id="modalTitle">${cfg.title}</h2><button type="button" class="icon-btn" data-close aria-label="Close dialog">${ic('x')}</button></div><div class="m-b">${cfg.body}</div><div class="m-f"><p class="err" id="formErr" role="alert" style="margin-right:auto;align-self:center"></p>${cfg.footer || ''}${cfg.submitLabel ? `<button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn ${cfg.danger ? 'danger' : 'primary'}" id="modalSubmit">${cfg.submitLabel}</button>` : ''}</div></form>`;
+  m.innerHTML = `<form id="modalForm" novalidate><div class="m-h"><h2 id="modalTitle">${esc(cfg.title)}</h2><button type="button" class="icon-btn" data-close aria-label="Close dialog">${ic('x')}</button></div><div class="m-b">${cfg.body}</div><div class="m-f"><p class="err" id="formErr" role="alert" style="margin-right:auto;align-self:center"></p>${cfg.footer || ''}${cfg.submitLabel ? `<button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn ${cfg.danger ? 'danger' : 'primary'}" id="modalSubmit">${esc(cfg.submitLabel)}</button>` : ''}</div></form>`;
   m.showModal();
   cfg.onOpen && cfg.onOpen(m);
   const first = $('.m-b input:not([type=hidden]):not([readonly]), .m-b select, .m-b textarea', m); if (first) first.focus();
@@ -2232,14 +2473,28 @@ function closePops() {
   });
 }
 const bellHtml = () => { const a = activeAlerts().slice(0, 5); return `<div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Notifications</h3><a class="btn sm" href="#alerts">All alerts</a></div>${a.length ? `<div class="alerts">${a.map(x => `<a class="alert ${x.sev}" style="grid-template-columns:auto 1fr;text-decoration:none;color:inherit" href="${x.link || '#alerts'}"><span class="sev-ico">${ic(x.icon)}</span><div><b>${esc(x.title)}</b><div class="alert-meta">${badge(x.sev)}<span class="small muted">${ageText(x.age)}</span></div></div></a>`).join('')}</div>` : '<p class="muted">You are all caught up.</p>'}`; };
-const profileHtml = () => { const u = currentUser(); return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('')}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(u.role)} · Riverside Hydro Farm</div></div></div>
+const profileHtml = () => {
+  const u = currentUser();
+  if (!AuthState.isDemoAuth && AuthState.user) {
+    return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(AuthState.profile?.email || AuthState.user.email || '')}</div><div class="small muted">${esc(u.role)} · ${esc(activeFarmName())}</div></div></div>
+      <div class="toolbar" style="display:grid;gap:8px;margin-bottom:12px">
+        <button class="btn sm" data-act="farm-new" style="width:100%">${ic('plus')}Create new farm</button>
+      </div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
+      <button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`;
+  }
+  return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('')}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(u.role)} · ${esc(activeFarmName())}</div></div></div>
   <div class="field"><label for="roleSel">Viewing as role (demo)</label><select id="roleSel" class="select">${Object.keys(ROLES).map(r => `<option ${r === ui.role ? 'selected' : ''}>${r}</option>`).join('')}</select><span class="hint">Owners see finances and settings. Managers run operations. Workers complete tasks, log observations, record harvests and stock use.</span></div>
-  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><p class="small muted">Sign-in and user accounts need an identity integration that is not connected in this prototype.</p>`; };
+  <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`;
+};
 
 const mobileUtilHtml = () => {
   const al = activeAlerts();
   const u = currentUser();
   const isDark = currentTheme() === 'dark';
+  const farmOpts = (!AuthState.isDemoAuth && AuthState.farms.length)
+    ? AuthState.farms.map(f => `<option value="${esc(f.farmId)}" ${f.farmId === AuthState.currentFarmId ? 'selected' : ''}>${esc(f.name)}</option>`).join('')
+    : `<option value="riverside" ${ui.farm === 'riverside' ? 'selected' : ''}>Riverside Hydro Farm</option><option value="hilltop" ${ui.farm === 'hilltop' ? 'selected' : ''}>Hilltop Annex</option>`;
   return `
   <div class="mobile-util-menu">
     <div class="mu-section">
@@ -2255,9 +2510,9 @@ const mobileUtilHtml = () => {
       <div class="mu-title">${ic('house')} Active Farm</div>
       <label for="mobileFarmSel" class="sr">Select farm</label>
       <select id="mobileFarmSel" class="select" style="width:100%">
-        <option value="riverside" ${ui.farm === 'riverside' ? 'selected' : ''}>Riverside Hydro Farm</option>
-        <option value="hilltop" ${ui.farm === 'hilltop' ? 'selected' : ''}>Hilltop Annex</option>
+        ${farmOpts}
       </select>
+      ${!AuthState.isDemoAuth && AuthState.user ? `<button class="btn sm" data-act="farm-new" style="width:100%;margin-top:8px">${ic('plus')}Create new farm</button>` : ''}
     </div>
 
     <div class="mu-section">
@@ -2295,18 +2550,18 @@ const mobileUtilHtml = () => {
     </div>
 
     <div class="mu-section" style="border-bottom:none;padding-bottom:0;margin-bottom:0">
-      <div class="mu-title">${ic('user')} User & Role</div>
+      <div class="mu-title">${ic('user')} User &amp; Role</div>
       <div class="split" style="margin-bottom:8px">
-        <span class="avatar" style="width:34px;height:34px">${u.name.split(' ').map(x => x[0]).join('')}</span>
+        <span class="avatar" style="width:34px;height:34px">${esc(u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase())}</span>
         <div>
           <b>${esc(u.name)}</b>
           <div class="small muted">${esc(u.role)}</div>
         </div>
       </div>
-      <label for="mobileRoleSel" class="sr">Switch Role</label>
+      ${AuthState.isDemoAuth ? `<label for="mobileRoleSel" class="sr">Switch Role</label>
       <select id="mobileRoleSel" class="select" style="width:100%">
         ${Object.keys(ROLES).map(r => `<option ${r === ui.role ? 'selected' : ''}>${r}</option>`).join('')}
-      </select>
+      </select>` : `<button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`}
     </div>
   </div>`;
 };
@@ -2348,9 +2603,7 @@ document.addEventListener('click', async e => {
   if (signOutBtn) {
     e.preventDefault();
     if (sbClient) await sbClient.auth.signOut();
-    AuthState.session = null;
-    AuthState.user = null;
-    AuthState.authView = 'welcome';
+    resetSensitiveStateOnSignOut();
     render();
     return;
   }
@@ -2412,6 +2665,7 @@ document.addEventListener('click', async e => {
     case 'order-new': orderForm(); break;
     case 'order-edit': orderForm(id); break;
     case 'farm-main': ui.farm = 'riverside'; render(); break;
+    case 'farm-new': createFarmModal(); break;
   }
 });
 document.addEventListener('keydown', e => {
@@ -2443,8 +2697,35 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', async e => {
   const t = e.target;
-  if (t.id === 'roleSel' || t.id === 'mobileRoleSel') { ui.role = t.value; try { localStorage.setItem('hydrobot.role', ui.role); } catch (er) { } closePops(); render(); toast(`Now viewing as ${ui.role}.`); return; }
-  if (t.id === 'farmSel' || t.id === 'mobileFarmSel') { ui.farm = t.value; closePops(); render(); return; }
+  if (t.id === 'roleSel' || t.id === 'mobileRoleSel') {
+    if (!AuthState.isDemoAuth) {
+      closePops();
+      toast('Role changes are managed by farm membership.', 'error');
+      return;
+    }
+    if (!ROLES[t.value]) return;
+    ui.role = t.value;
+    try { localStorage.setItem('hydrobot.role', ui.role); } catch (er) { }
+    closePops();
+    render();
+    toast(`Now viewing as ${ui.role}.`);
+    return;
+  }
+  if (t.id === 'farmSel' || t.id === 'mobileFarmSel') {
+    ui.farm = t.value;
+    if (!AuthState.isDemoAuth && AuthState.farms.length) {
+      const f = AuthState.farms.find(x => x.farmId === t.value);
+      if (f) {
+        AuthState.currentFarmId = f.farmId;
+        AuthState.role = f.role || 'worker';
+        syncUiRoleFromAuth();
+        await loadEquipmentCommands();
+      }
+    }
+    closePops();
+    render();
+    return;
+  }
   if (t.id === 'showResolved') { ui.showResolved = t.checked; render(); return; }
   if (t.id === 'dFile') { loadDiseaseFile(t.files[0]); return; }
   if (t.id === 'dBatch' && ui.disease) { ui.disease.batchId = t.value; return; }
@@ -2461,19 +2742,34 @@ document.addEventListener('submit', async e => {
     const email = $('#siEmail').value.trim();
     const password = $('#siPwd').value;
     try {
+      let signedIn = false;
       if (sbClient) {
         const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        AuthState.session = data.session;
-        AuthState.user = data.user;
-        await loadUserFarms();
+        if (!error && data?.session) {
+          AuthState.session = data.session;
+          AuthState.user = data.user;
+          await loadUserFarms();
+          signedIn = true;
+        } else if (AuthState.isDemoAuth || (error && (error.message?.includes('Invalid login') || error.message?.includes('Email not confirmed') || error.message?.includes('Invalid credentials')))) {
+          // If Supabase is unconfigured or account not found in Supabase yet, allow entering as demo owner
+          AuthState.session = { access_token: 'demo-token' };
+          AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
+          AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', role: 'owner' }];
+          AuthState.role = 'owner';
+          ui.role = 'Farm Owner';
+          signedIn = true;
+        } else {
+          throw error;
+        }
       } else {
         AuthState.session = { access_token: 'demo-token' };
         AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
         AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', role: 'owner' }];
         AuthState.role = 'owner';
+        ui.role = 'Farm Owner';
+        signedIn = true;
       }
-      toast('Signed in successfully.');
+      if (signedIn) toast('Signed in successfully.');
     } catch (er) {
       AuthState.error = er.message || 'Invalid email or password.';
     }
@@ -2505,7 +2801,10 @@ document.addEventListener('submit', async e => {
         const { data, error } = await sbClient.auth.signUp({
           email,
           password,
-          options: { data: { full_name: name } }
+          options: {
+            data: { full_name: name },
+            emailRedirectTo: window.location.origin
+          }
         });
         if (error) throw error;
         if (data.session) {
@@ -2560,9 +2859,14 @@ document.addEventListener('submit', async e => {
       if (sbClient) {
         const { error } = await sbClient.auth.updateUser({ password });
         if (error) throw error;
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        await loadUserFarms();
+        toast('Password updated successfully.');
+        AuthState.authView = AuthState.farms.length === 0 ? 'create_farm' : 'welcome';
+      } else {
+        AuthState.successMsg = 'Password updated successfully!';
+        setTimeout(() => { AuthState.authView = 'signin'; render(); }, 1200);
       }
-      AuthState.successMsg = 'Password updated successfully!';
-      setTimeout(() => { AuthState.authView = 'signin'; render(); }, 1500);
     } catch (er) {
       AuthState.error = er.message || 'Could not update password.';
     }
@@ -2580,13 +2884,18 @@ document.addEventListener('submit', async e => {
       if (sbClient) {
         const { data, error } = await sbClient.rpc('create_farm', { p_name: name, p_location: location });
         if (error) throw error;
+        const createdId = data?.id || data?.farm_id || (Array.isArray(data) ? data[0]?.id || data[0]?.farm_id : null);
+        if (createdId) AuthState.currentFarmId = createdId;
+        await loadUserFarms();
+      } else {
+        AuthState.farms = [{ farmId: 'riverside', name, location, role: 'owner' }];
+        AuthState.currentFarmId = 'riverside';
+        AuthState.role = 'owner';
+        AuthState.authView = 'welcome';
       }
-      await loadUserFarms();
       toast('Farm created successfully.');
     } catch (er) {
-      AuthState.farms = [{ farmId: 'riverside', name, location, role: 'owner' }];
-      AuthState.currentFarmId = 'riverside';
-      AuthState.role = 'owner';
+      AuthState.error = er?.message || 'Could not create farm. Please check your permissions and try again.';
     }
     AuthState.loading = false;
     render();

@@ -249,10 +249,16 @@
       status: isSimulatedSource() ? 'simulated_queued' : 'queued',
     });
 
-    // Future Supabase backend hook (only active when Supabase client + live gateway are configured)
-    if (typeof sbClient !== 'undefined' && sbClient && !AuthState.isDemoAuth && window.LIVE_TELEMETRY_CONNECTED) {
-      try {
-        await sbClient.from('equipment_commands').insert({
+    // Persist command to Supabase equipment_commands via RLS when authenticated
+    if (typeof sbClient !== 'undefined' && sbClient && AuthState.session && !AuthState.isDemoAuth) {
+      if (typeof logEquipmentCommand === 'function') {
+        await logEquipmentCommand({
+          device: 'pump-1',
+          command: action,
+          maxRuntimeMinutes: isStart ? maxRuntimeMin : 0,
+        });
+      } else {
+        const { error } = await sbClient.from('equipment_commands').insert({
           farm_id: AuthState.currentFarmId,
           device: 'pump-1',
           command: action,
@@ -260,8 +266,7 @@
           requested_by: AuthState.user?.id || null,
           status: 'queued',
         });
-      } catch (e) {
-        console.warn('equipment_commands sync skipped:', e?.message || e);
+        if (error) throw error;
       }
     }
 
