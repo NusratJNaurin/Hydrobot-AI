@@ -25,6 +25,7 @@ const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(
 const ICONS = {
   leaf: 'M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z|M2 21c0-3 1.85-5.36 5.08-6',
   grid: 'M3 3h7v7H3z|M14 3h7v7h-7z|M14 14h7v7h-7z|M3 14h7v7H3z',
+  cube: 'M12 2l9 5v10l-9 5-9-5V7z|M12 22V12|M21 7l-9 5-9-5',
   sprout: 'M7 20h10|M10 20c5.5-2.5.8-6.4 3-10|M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z|M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z',
   house: 'M3 21V10l9-7 9 7v11|M3 21h18|M9 21v-6h6v6|M3 10h18',
   basket: 'M5 11l2 9h10l2-9|M3 11h18|M9 11l3-7 3 7|M10 15v2|M14 15v2',
@@ -80,7 +81,7 @@ const PEOPLE = [
   { id: 'p5', name: 'Priya Nair', role: 'Farm Worker' },
 ];
 const ROLES = {
-  'Farm Owner': { name: 'Jaecim Adaya', perms: ['batches', 'targets', 'tasks', 'inventory', 'finance', 'sales', 'commands', 'harvest'] },
+  'Farm Owner': { name: 'Jeacim Adaya', perms: ['batches', 'targets', 'tasks', 'inventory', 'finance', 'sales', 'commands', 'harvest'] },
   'Farm Manager': { name: 'Diego Alvarez', perms: ['batches', 'targets', 'tasks', 'inventory', 'sales', 'commands', 'harvest', 'financeView'] },
   'Farm Worker': { name: 'Maria Santos', perms: ['harvest'] },
 };
@@ -308,7 +309,7 @@ function errText(e) {
 
 /* ================= State ================= */
 const ui = {
-  route: 'dashboard', role: 'Farm Owner', farm: 'riverside', trendRange: 30,
+  route: 'dashboard', role: 'Farm Owner', farm: 'hydrovest', trendRange: 30,
   ghMetric: 'temp', ghRange: '24h', plantF: { q: '', gh: '', stage: '' }, taskF: { q: '', gh: '', who: '', pri: '', status: 'Open', when: 'all' },
   invCat: 'All', invQ: '', showResolved: false, calMonth: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1), saleF: '',
   nutGh: 'gh-d', chat: [], chatBusy: false, disease: null, sample: null, sampleImages: false, fcRange: 56,
@@ -430,6 +431,7 @@ let renderQueued = false;
 function scheduleRender() { if (renderQueued) return; renderQueued = true; requestAnimationFrame(() => { renderQueued = false; render(); }); }
 const ROUTES = {
   dashboard: { label: 'Dashboard', icon: 'grid', group: 'Overview', view: () => vDashboard() },
+  garden: { label: 'Live Garden', icon: 'cube', group: 'Overview', view: () => window.LiveGardenUI ? window.LiveGardenUI.renderView() : loadingView() },
   plants: { label: 'Plant Management', icon: 'sprout', group: 'Operations', view: () => vPlants() },
   greenhouses: { label: 'Greenhouse Management', icon: 'house', group: 'Operations', view: () => vGreenhouses() },
   harvest: { label: 'Harvest Management', icon: 'basket', group: 'Operations', view: () => vHarvest() },
@@ -447,14 +449,550 @@ const ROUTES = {
 };
 GH.forEach(g => ROUTES[g.id] = { label: g.name, parent: 'greenhouses', view: () => vGhDetail(g.id) });
 
+/* ================= Custom Mouse Follower & Scroll Animations ================= */
+let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+let cursorX = mouseX, cursorY = mouseY;
+let ringX = mouseX, ringY = mouseY;
+document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+function animateCursor() {
+  cursorX += (mouseX - cursorX) * 0.25;
+  cursorY += (mouseY - cursorY) * 0.25;
+  ringX += (mouseX - ringX) * 0.15;
+  ringY += (mouseY - ringY) * 0.15;
+  const dot = $('#cursorDot'), ring = $('#cursorRing');
+  if (dot) dot.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+  if (ring) ring.style.transform = `translate(${ringX}px, ${ringY}px)`;
+  requestAnimationFrame(animateCursor);
+}
+requestAnimationFrame(animateCursor);
+document.addEventListener('mouseover', e => {
+  if (e.target.closest('a, button, input, select, textarea, [role="button"], .click')) {
+    $('#cursorRing')?.classList.add('hovered');
+  }
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('a, button, input, select, textarea, [role="button"], .click')) {
+    $('#cursorRing')?.classList.remove('hovered');
+  }
+});
+
+const scrollObserver = new IntersectionObserver((entries, obs) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('is-revealed');
+      obs.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+function initScrollAnimations() {
+  $$('.reveal-on-scroll, .card, .kpi, .gh-card, .auth-card, .hydro-hero').forEach(el => {
+    if (!el.classList.contains('reveal-on-scroll')) {
+      el.classList.add('reveal-on-scroll');
+    }
+    scrollObserver.observe(el);
+  });
+}
+
+/* ================= Supabase Auth & Role Management ================= */
+const supabaseUrl = window.SUPABASE_URL || '';
+const supabaseAnonKey = window.SUPABASE_ANON_KEY || '';
+const isSupabaseConfigured = window.supabase && supabaseUrl && supabaseUrl !== 'https://your-project.supabase.co' && supabaseUrl !== '';
+const sbClient = isSupabaseConfigured ? window.supabase.createClient(supabaseUrl, supabaseAnonKey) : null;
+
+const AuthState = {
+  session: null,
+  user: null,
+  farms: [],
+  currentFarmId: 'riverside',
+  role: 'owner', // 'owner' | 'manager' | 'worker'
+  authView: 'welcome',
+  loading: false,
+  error: '',
+  successMsg: '',
+  isDemoAuth: !isSupabaseConfigured
+};
+
+async function initAuth() {
+  if (sbClient) {
+    const { data: { session } } = await sbClient.auth.getSession();
+    AuthState.session = session;
+    AuthState.user = session?.user || null;
+    if (session) await loadUserFarms();
+
+    sbClient.auth.onAuthStateChange(async (event, session) => {
+      AuthState.session = session;
+      AuthState.user = session?.user || null;
+      if (event === 'PASSWORD_RECOVERY') AuthState.authView = 'reset';
+      if (session) await loadUserFarms();
+      render();
+    });
+  } else {
+    AuthState.session = null;
+    AuthState.user = null;
+  }
+}
+
+async function loadUserFarms() {
+  if (!sbClient || !AuthState.user) return;
+  try {
+    const { data, error } = await sbClient
+      .from('farm_members')
+      .select('role, farms(id, name, location)')
+      .eq('user_id', AuthState.user.id);
+    if (error) throw error;
+    AuthState.farms = (data || []).map(m => ({ farmId: m.farms.id, name: m.farms.name, location: m.farms.location, role: m.role }));
+    if (AuthState.farms.length === 0) {
+      AuthState.authView = 'create_farm';
+    } else {
+      AuthState.currentFarmId = AuthState.farms[0].farmId;
+      AuthState.role = AuthState.farms[0].role || 'worker';
+      ui.farm = AuthState.currentFarmId;
+    }
+  } catch (e) {
+    AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
+    AuthState.role = 'owner';
+  }
+}
+
+function renderAuthScreen() {
+  if (AuthState.authView === 'signin') return renderSignIn();
+  if (AuthState.authView === 'signup') return renderSignUp();
+  if (AuthState.authView === 'forgot') return renderForgot();
+  if (AuthState.authView === 'reset') return renderReset();
+  return renderWelcome();
+}
+
+function renderWelcome() {
+  const brandSvg = '<span class="brand-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>';
+  const fallbackMarkup = (icon, label) => `<div class="hv-media-fallback">${ic(icon)}<span>${label}</span></div>`;
+
+  return `
+    <div class="hv-welcome">
+      <header class="hv-topbar" aria-label="Hydrovest welcome navigation">
+        <a href="#" class="hv-logo-lockup" data-act="auth-nav" data-view="welcome" aria-label="Hydrovest home">
+          ${brandSvg}
+          <span class="hv-wordmark">Hydro<span>vest</span></span>
+        </a>
+        <nav class="hv-nav" aria-label="Welcome sections">
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-systems">Growing Systems</button>
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-produce">Water &amp; Crops</button>
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-platform">Smart Operations</button>
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-access">Farm Portal</button>
+        </nav>
+        <div class="hv-top-cta">
+          <button type="button" class="hv-btn sm hv-btn-secondary" data-act="auth-nav" data-view="signin">Sign in</button>
+          <button type="button" class="hv-btn sm hv-btn-primary" data-act="auth-nav" data-view="signup">Create account</button>
+        </div>
+      </header>
+
+      <section class="hv-hero" aria-label="Hydrovest Smart Hydroponics">
+        <div class="hv-hero-grid">
+          <div class="hv-hero-copy">
+            <div class="hv-kicker">
+              <span>Hydrovest Smart Hydroponics</span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span>Powered by Hydrobot.Ai</span>
+            </div>
+            <h1 class="hv-hero-title">Clean water, sunlit greenhouses, <span class="hv-grad">intelligent harvests.</span></h1>
+            <p class="hv-hero-desc">Hydrovest cultivates crisp leafy greens, aromatic herbs, and vine crops year-round using closed-loop hydroponics, precision climate control, and one unified farm operating system.</p>
+            <div class="hv-cta-row">
+              <button type="button" class="hv-btn hv-btn-primary" data-act="auth-nav" data-view="signup">Create account</button>
+              <button type="button" class="hv-btn hv-btn-secondary" data-act="auth-nav" data-view="signin">Sign in to farm</button>
+            </div>
+            <div class="hv-hero-meta">
+              <span>Closed-loop NFT &amp; DWC</span>
+              <span aria-hidden="true">·</span>
+              <span>Vertical Aeroponic Towers</span>
+              <span aria-hidden="true">·</span>
+              <span>3D Digital Twin &amp; Crop Telemetry</span>
+            </div>
+          </div>
+
+          <div class="hv-hero-visual">
+            <div class="hv-media-frame">
+              <img src="/assets/images/hero_hydrovest_farm_1794817767084.jpg" alt="Sunlit Hydrovest commercial hydroponic greenhouse growing butterhead lettuce and cherry tomatoes in clean white channels" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+              ${fallbackMarkup('house', 'Hydrovest Commercial Glasshouse')}
+              <div class="hv-hero-scrim">
+                <div class="hv-hero-caption">
+                  <b>Controlled Environment Glasshouse</b>
+                  <span>Recirculating mineral nutrition &amp; active climate balance</span>
+                </div>
+              </div>
+            </div>
+            <figure class="hv-companion-row">
+              <div class="hv-companion-thumb">
+                <img src="/assets/images/hydrovest_water_system_1794817767631.jpg" alt="Oxygenated nutrient solution circulating through clean hydroponic feed channels" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+                ${fallbackMarkup('drop', 'Feed Loop')}
+              </div>
+              <figcaption class="hv-companion-copy">
+                <b>Precision Oxygenated Feed Loop</b>
+                <span>Filtered mineral water continuously returns from every bay for balanced pH and EC.</span>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="hv-crop-strip reveal-on-scroll" aria-label="Primary hydroponic crops">
+        <article class="hv-crop-tile">
+          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-emerald),#34d399)"></div>
+          <h3>Butterhead Lettuce</h3>
+          <p>Crisp, soil-free heads grown across NFT channel benches and indoor multi-tier LED racks.</p>
+          <div class="hv-crop-spec">pH 5.6–6.2 · 42-day cycle</div>
+        </article>
+        <article class="hv-crop-tile">
+          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-coral),#f97316)"></div>
+          <h3>Cherry Tomato</h3>
+          <p>High-brix vine clusters cultivated in Dutch bucket drip loops with balanced fruiting EC.</p>
+          <div class="hv-crop-spec">pH 5.8–6.5 · Continuous harvest</div>
+        </article>
+        <article class="hv-crop-tile">
+          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-lime),#eab308)"></div>
+          <h3>Genovese Basil</h3>
+          <p>Fragrant culinary stems thriving in deep water culture troughs with dissolved oxygen control.</p>
+          <div class="hv-crop-spec">pH 5.5–6.5 · 32-day cycle</div>
+        </article>
+        <article class="hv-crop-tile">
+          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-berry),var(--hv-aqua))"></div>
+          <h3>Albion Strawberry</h3>
+          <p>Sweet day-neutral berries trained along vertical towers for compact, clean canopy airflow.</p>
+          <div class="hv-crop-spec">pH 5.5–6.2 · Vertical towers</div>
+        </article>
+      </section>
+
+      <section class="hv-section reveal-on-scroll" id="hv-systems" aria-labelledby="hv-systems-title">
+        <div class="hv-section-head">
+          <div>
+            <span class="hv-section-kicker" style="color:var(--hv-aqua)">01 · Cultivation Architecture</span>
+            <h2 id="hv-systems-title">Built around real hydroponic growing systems</h2>
+          </div>
+          <p>From indoor LED racks to sunlit NFT aisles and vertical towers, every bay at Hydrovest is engineered for clean roots, rapid turnover, and consistent quality.</p>
+        </div>
+        <div class="hv-bento">
+          <article class="hv-bento-card wide">
+            <div class="hv-bento-media">
+              <img src="/assets/aistudio/hydrovest_tech_970fe4be.jpg" alt="Hydrovest grower inspecting vibrant green butterhead lettuce in an indoor shelved LED grow rack" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+              ${fallbackMarkup('sprout', 'Indoor Multi-Tier LED Grow Racks')}
+            </div>
+            <div class="hv-bento-body">
+              <div class="hv-bento-meta" style="color:var(--hv-gold)">
+                <span>Indoor Shelved Racks</span>
+                <span aria-hidden="true">·</span>
+                <span>Full-Spectrum LED</span>
+              </div>
+              <h3>Multi-tier indoor racks for steady leaf quality</h3>
+              <p>Stacked growing beds under calibrated linear LEDs deliver uniform light distribution and predictable harvest schedules regardless of outdoor weather.</p>
+            </div>
+          </article>
+
+          <article class="hv-bento-card">
+            <div class="hv-bento-media">
+              <img src="/assets/aistudio/hydrovest_tech_2_9604557f.jpg" alt="Sunlit Hydrovest greenhouse aisle flanked by twin NFT hydroponic lettuce benches" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+              ${fallbackMarkup('drop', 'Nutrient Film Technique Benches')}
+            </div>
+            <div class="hv-bento-body">
+              <div class="hv-bento-meta" style="color:var(--hv-emerald)">
+                <span>NFT Channels</span>
+                <span aria-hidden="true">·</span>
+                <span>Natural Daylight</span>
+              </div>
+              <h3>Shallow nutrient film benches</h3>
+              <p>Continuous thin-film nutrient flow across sloped white channels keeps roots oxygenated and foliage clean off the floor.</p>
+            </div>
+          </article>
+
+          <article class="hv-bento-card">
+            <div class="hv-bento-media">
+              <img src="/assets/aistudio/hydrovest_tech_1_40b62192.jpg" alt="Rows of white 8-tier vertical hydroponic growing towers filled with lush leafy crops" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+              ${fallbackMarkup('house', 'Vertical Growing Towers')}
+            </div>
+            <div class="hv-bento-body">
+              <div class="hv-bento-meta" style="color:var(--hv-aqua)">
+                <span>Vertical Towers</span>
+                <span aria-hidden="true">·</span>
+                <span>High Density</span>
+              </div>
+              <h3>Vertical towers for tight footprints</h3>
+              <p>Eight-tier modular columns multiply vertical growing density while gravity-fed return manifolds recirculate every drop back to the reservoir.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="hv-split-showcase reveal-on-scroll" id="hv-produce" aria-labelledby="hv-produce-title">
+        <div class="hv-photo-duo">
+          <div class="hv-photo-tile">
+            <img src="/assets/images/hydrovest_produce_harvest_1794817767415.jpg" alt="Freshly harvested Hydrovest butterhead lettuce, vine cherry tomatoes, Genovese basil, and ripe strawberries" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+            ${fallbackMarkup('basket', 'Fresh Hydrovest Harvest')}
+            <div class="hv-photo-cap">Harvested crisp, clean &amp; soil-free</div>
+          </div>
+          <div class="hv-photo-tile">
+            <img src="/assets/images/hydrovest_water_system_1794817767631.jpg" alt="Close-up of clear oxygenated hydroponic water feeding basil and lettuce roots" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+            ${fallbackMarkup('drop', 'Closed-Loop Water Nutrition')}
+            <div class="hv-photo-cap">Closed-loop oxygenated water &amp; mineral feed</div>
+          </div>
+        </div>
+
+        <div class="hv-split-copy">
+          <div>
+            <span class="hv-section-kicker" style="color:var(--hv-coral)">02 · Pure Water &amp; Fresh Produce</span>
+            <h2 id="hv-produce-title">Vibrant flavour rooted in balanced mineral water</h2>
+          </div>
+          <p>By recirculating filtered nutrient solutions instead of saturating open fields, Hydrovest pairs dramatically cleaner water stewardship with crisp leaves, sweet fruit, and zero soil grit.</p>
+          <div class="hv-spec-list">
+            <div class="hv-spec-item">
+              <b>Closed-Loop Recirculation</b>
+              <span>Return lines capture and re-balance unused water and minerals every cycle.</span>
+            </div>
+            <div class="hv-spec-item">
+              <b>Targeted pH &amp; EC Windows</b>
+              <span>Every crop batch tracks its own calibrated nutrient and acidity range.</span>
+            </div>
+            <div class="hv-spec-item">
+              <b>Foliar &amp; Root Hygiene</b>
+              <span>Elevated beds, weed-mat aisles, and controlled airflow protect crop health.</span>
+            </div>
+            <div class="hv-spec-item">
+              <b>Direct Harvest Traceability</b>
+              <span>Batches connect planting dates, inspections, grading, and customer delivery.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="hv-section reveal-on-scroll" id="hv-platform" aria-labelledby="hv-platform-title">
+        <div class="hv-section-head">
+          <div>
+            <span class="hv-section-kicker" style="color:var(--hv-emerald)">03 · Farm Operations Workspace</span>
+            <h2 id="hv-platform-title">Everything your team runs after signing in</h2>
+          </div>
+          <p>Sign in to access Hydrobot.Ai—the unified workspace for greenhouse telemetry, our interactive 3D Live Garden twin, daily farm tasks, and harvest logistics.</p>
+        </div>
+        <div class="hv-ops-grid">
+          <article class="hv-ops-card">
+            <span class="hv-ops-num" style="color:var(--hv-aqua)">01 · Digital Twin</span>
+            <h3>Interactive 3D Live Garden</h3>
+            <p>Inspect shelved racks, NFT channels, vertical towers, the main nutrient tank, and pump flow state inside a real-time isometric 3D scene.</p>
+          </article>
+          <article class="hv-ops-card">
+            <span class="hv-ops-num" style="color:var(--hv-emerald)">02 · Telemetry &amp; Alerts</span>
+            <h3>Climate, pH, EC &amp; Reservoir Guardrails</h3>
+            <p>Monitor air temperature, humidity, CO₂, water temperature, and tank levels with immediate threshold alerts when a zone drifts.</p>
+          </article>
+          <article class="hv-ops-card">
+            <span class="hv-ops-num" style="color:var(--hv-gold)">03 · Crop &amp; Crew Execution</span>
+            <h3>Batches, Tasks &amp; Smart Inventory</h3>
+            <p>Track germination through harvest readiness, assign daily farm tasks by role, and catch low seed or nutrient stock before reorder points hit.</p>
+          </article>
+          <article class="hv-ops-card">
+            <span class="hv-ops-num" style="color:var(--hv-coral)">04 · Harvest to Table</span>
+            <h3>Yield Analytics, Orders &amp; Farm Assistant</h3>
+            <p>Record Grade A/B/C yields, manage refrigerated van deliveries, and query farm records directly with the built-in agricultural assistant.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="hv-cta-band reveal-on-scroll" id="hv-access" aria-labelledby="hv-cta-title">
+        <div>
+          <h2 id="hv-cta-title">Step inside your Hydrovest greenhouse workspace</h2>
+          <p>Create a grower account to configure your farm, or sign in with your existing credentials to open live operations and the 3D Live Garden.</p>
+        </div>
+        <div class="hv-cta-actions">
+          <button type="button" class="hv-btn hv-btn-light" data-act="auth-nav" data-view="signup">Create account</button>
+          <button type="button" class="hv-btn hv-btn-ghost-dark" data-act="auth-nav" data-view="signin">Sign in</button>
+        </div>
+      </section>
+
+      <footer class="hv-footer">
+        <div class="hv-logo-lockup">
+          ${brandSvg}
+          <span class="hv-wordmark" style="font-size:1.05rem">Hydro<span>vest</span></span>
+        </div>
+        <div class="hv-footer-links">
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-systems">Growing Systems</button>
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-produce">Water &amp; Crops</button>
+          <button type="button" class="hv-nav-link" data-hv-scroll="hv-platform">Smart Operations</button>
+          <button type="button" class="hv-nav-link" data-act="auth-nav" data-view="signin">Sign in</button>
+        </div>
+        <span>Hydrovest · Hydrobot.Ai Smart Farming</span>
+      </footer>
+    </div>
+  `;
+}
+
+function renderSignIn() {
+  return `
+    <div class="auth-wrapper reveal-on-scroll">
+      <div class="auth-card">
+        <h2>Welcome back</h2>
+        <p>Sign in to access your farm operations and telemetry dashboard.</p>
+        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
+        ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
+        <form id="signInForm">
+          <div class="form-group">
+            <label for="siEmail">Email address</label>
+            <input type="email" id="siEmail" class="form-control" required placeholder="farmer@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="siPwd">Password</label>
+            <div class="pwd-wrap">
+              <input type="password" id="siPwd" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+              <button type="button" class="pwd-toggle" data-act="toggle-pwd" data-target="siPwd">Show</button>
+            </div>
+          </div>
+          <div class="auth-meta-row">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox"> Remember me</label>
+            <a href="#" data-act="auth-nav" data-view="forgot" style="color:var(--accent-ink);font-weight:700;text-decoration:none">Forgot password?</a>
+          </div>
+          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Signing in…' : 'Sign in'}</button>
+        </form>
+        <div class="auth-links">
+          Don't have an account? <a href="#" data-act="auth-nav" data-view="signup">Create account</a> · <a href="#" data-act="auth-nav" data-view="welcome">Home</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSignUp() {
+  return `
+    <div class="auth-wrapper reveal-on-scroll">
+      <div class="auth-card">
+        <h2>Create an account</h2>
+        <p>Set up your credentials to manage your hydroponic farm.</p>
+        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
+        ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
+        <form id="signUpForm">
+          <div class="form-group">
+            <label for="suName">Full name</label>
+            <input type="text" id="suName" class="form-control" required placeholder="Jordan Reyes" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="suEmail">Email address</label>
+            <input type="email" id="suEmail" class="form-control" required placeholder="farmer@example.com" autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label for="suPwd">Password</label>
+            <div class="pwd-wrap">
+              <input type="password" id="suPwd" class="form-control" required placeholder="••••••••" autocomplete="new-password">
+              <button type="button" class="pwd-toggle" data-act="toggle-pwd" data-target="suPwd">Show</button>
+            </div>
+            <ul class="pwd-rules" id="pwdRules">
+              <li id="ruleLen">• At least 8 characters</li>
+            </ul>
+          </div>
+          <div class="form-group">
+            <label for="suPwdConfirm">Confirm password</label>
+            <input type="password" id="suPwdConfirm" class="form-control" required placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Creating account…' : 'Create account'}</button>
+        </form>
+        <div class="auth-links">
+          Already have an account? <a href="#" data-act="auth-nav" data-view="signin">Sign in</a> · <a href="#" data-act="auth-nav" data-view="welcome">Home</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderForgot() {
+  return `
+    <div class="auth-wrapper reveal-on-scroll">
+      <div class="auth-card">
+        <h2>Reset password</h2>
+        <p>Enter your email and we'll send you a password recovery link.</p>
+        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
+        ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
+        <form id="forgotForm">
+          <div class="form-group">
+            <label for="fgEmail">Email address</label>
+            <input type="email" id="fgEmail" class="form-control" required placeholder="farmer@example.com" autocomplete="email">
+          </div>
+          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Sending link…' : 'Send reset instructions'}</button>
+        </form>
+        <div class="auth-links">
+          Remembered your password? <a href="#" data-act="auth-nav" data-view="signin">Sign in</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderReset() {
+  return `
+    <div class="auth-wrapper reveal-on-scroll">
+      <div class="auth-card">
+        <h2>Set new password</h2>
+        <p>Enter your new secure password below.</p>
+        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
+        ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
+        <form id="resetForm">
+          <div class="form-group">
+            <label for="rsPwd">New password</label>
+            <div class="pwd-wrap">
+              <input type="password" id="rsPwd" class="form-control" required placeholder="••••••••" autocomplete="new-password">
+              <button type="button" class="pwd-toggle" data-act="toggle-pwd" data-target="rsPwd">Show</button>
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Updating…' : 'Update password'}</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function renderCreateFarmScreen() {
+  return `
+    <div class="auth-wrapper reveal-on-scroll">
+      <div class="auth-card">
+        <h2>Create your farm</h2>
+        <p>Set up your greenhouse farm entity to begin managing crops and telemetry.</p>
+        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
+        <form id="createFarmForm">
+          <div class="form-group">
+            <label for="cfName">Farm name</label>
+            <input type="text" id="cfName" class="form-control" required placeholder="Riverside Hydro Farm">
+          </div>
+          <div class="form-group">
+            <label for="cfLoc">Location / Sector</label>
+            <input type="text" id="cfLoc" class="form-control" required placeholder="Valley Sector A">
+          </div>
+          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Creating farm…' : 'Create farm'}</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function renderAccessDeniedScreen() {
+  return `
+    <div class="card card-b reveal-on-scroll" style="text-align:center;padding:50px 20px;max-width:600px;margin:40px auto">
+      <div style="font-size:3.5rem;margin-bottom:12px">🚫</div>
+      <h2>You don't have access</h2>
+      <p class="muted" style="margin-top:8px;margin-bottom:24px">Your current role (<b style="text-transform:capitalize">${esc(AuthState.role)}</b>) does not permit viewing financial or sales modules.</p>
+      <a href="#dashboard" class="btn primary" style="display:inline-block">Return to Dashboard</a>
+    </div>
+  `;
+}
+
 function renderNav() {
-  const groups = {}; Object.entries(ROUTES).forEach(([k, r]) => { if (r.group) (groups[r.group] = groups[r.group] || []).push([k, r]); });
+  const groups = {};
+  Object.entries(ROUTES).forEach(([k, r]) => {
+    if (AuthState.role === 'worker' && ['finance', 'sales'].includes(k)) return;
+    if (r.group) (groups[r.group] = groups[r.group] || []).push([k, r]);
+  });
   const cur = ROUTES[ui.route]?.parent || ui.route;
   const ac = Store.mode === 'loading' ? 0 : activeAlerts().filter(a => a.state === 'new').length;
   $('#nav').innerHTML = Object.entries(groups).map(([g, items]) => `<div class="nav-group" role="group" aria-labelledby="ng-${g.replace(/\W/g, '')}"><div class="nav-label" id="ng-${g.replace(/\W/g, '')}">${g}</div>${items.map(([k, r]) => `<a href="#${k}" ${cur === k ? 'aria-current="page"' : ''}>${ic(r.icon)}<span>${r.label}</span>${k === 'alerts' && ac ? `<span class="count" aria-label="${ac} new alerts">${ac}</span>` : ''}</a>`).join('')}</div>`).join('');
-  const modeTxt = Store.mode === 'db' ? ['--ok', 'Records saved to the shared farm database'] : Store.mode === 'local' ? ['--warn', 'Records saved in this browser only'] : ['--muted', 'Connecting to storage…'];
-  $('#sideFoot').innerHTML = `<div class="row"><span class="dot" style="background:var(${modeTxt[0]})"></span>${modeTxt[1]}</div><div class="row"><span class="dot" style="background:var(--side-dim)"></span>Sensor feeds: demo data, no devices connected</div>`;
+  const userName = AuthState.user?.user_metadata?.full_name || AuthState.user?.email || 'User';
+  $('#sideFoot').innerHTML = `
+    <div class="row"><b>${esc(userName)}</b> <span class="tag" style="text-transform:capitalize">${esc(AuthState.role)}</span></div>
+    <div class="row"><span class="dot" style="background:var(--ok)"></span>Connected</div>
+    <button class="btn" data-act="auth-signout" style="width:100%;margin-top:4px;font-size:.78rem;padding:5px">Sign out</button>
+  `;
 }
+
 function renderTop() {
   $('#menuBtn').innerHTML = ic('menu');
   const n = Store.mode === 'loading' ? 0 : activeAlerts().filter(a => a.state === 'new').length;
@@ -473,18 +1011,63 @@ function renderTop() {
   }
   updateThemeUI();
 }
+
 function render() {
+  const view = $('#view');
+  const isSignedOut = !AuthState.session;
+
+  if (isSignedOut) {
+    window.LiveGardenUI?.dispose();
+    if ($('#sidebar')) $('#sidebar').style.display = 'none';
+    if ($('.topbar')) $('.topbar').style.display = 'none';
+    if ($('.main')) $('.main').style.marginLeft = '0';
+    view.style.marginInline = 'auto';
+    view.innerHTML = renderAuthScreen();
+    initScrollAnimations();
+    return;
+  } else {
+    if ($('#sidebar')) $('#sidebar').style.display = 'flex';
+    if ($('.topbar')) $('.topbar').style.display = 'flex';
+    if ($('.main')) $('.main').style.marginLeft = '';
+    view.style.marginInline = '';
+  }
+
+  if (AuthState.authView === 'create_farm' && AuthState.farms.length === 0) {
+    window.LiveGardenUI?.dispose();
+    view.innerHTML = renderCreateFarmScreen();
+    initScrollAnimations();
+    return;
+  }
+
+  if (AuthState.role === 'worker' && ['finance', 'sales'].includes(ui.route)) {
+    window.LiveGardenUI?.dispose();
+    view.innerHTML = renderAccessDeniedScreen();
+    initScrollAnimations();
+    return;
+  }
+
+  if (ui.route === 'garden' && ui.farm !== 'hilltop' && Store.mode !== 'loading' && window.LiveGardenUI?.isActive()) {
+    renderNav();
+    renderTop();
+    window.LiveGardenUI.updateInPlace();
+    return;
+  }
+
+  if (ui.route !== 'garden' || ui.farm === 'hilltop' || Store.mode === 'loading') {
+    window.LiveGardenUI?.dispose();
+  }
+
   const fa = document.activeElement, fid = fa && fa.id, sel = fa && 'selectionStart' in fa ? [fa.selectionStart, fa.selectionEnd] : null;
   charts.forEach(c => c.destroy()); charts = [];
   renderNav(); renderTop();
-  const view = $('#view');
   if (Store.mode === 'loading') { view.innerHTML = loadingView(); return; }
   const r = ROUTES[ui.route] || ROUTES.dashboard;
   let html;
-  if (ui.farm !== 'riverside') html = vEmptyFarm();
+  if (ui.farm === 'hilltop') html = vEmptyFarm();
   else { try { html = r.view(); } catch (e) { console.error(e); html = `<div class="card card-b"><div class="notice crit">${ic('alert')}<div><b>This page could not be displayed.</b> ${esc(e.message)}. Try another page, then come back.</div></div></div>`; } }
   view.innerHTML = (Store.error ? `<div class="notice warn" role="alert">${ic('alert')}<div>${esc(Store.error)}</div></div>` : '') + html;
   postRender.forEach(f => { try { f(); } catch (e) { console.error(e); } }); postRender = [];
+  initScrollAnimations();
   if (fid) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus({ preventScroll: true }); if (sel && 'setSelectionRange' in el) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { } } }
 }
 let postRender = [];
@@ -741,7 +1324,7 @@ function vGhDetail(id) {
     ${card('Sensor connections', `<div class="tbl-wrap"><table><thead><tr><th>Sensor</th><th>Status</th><th>Last update</th></tr></thead><tbody>${SENSORS.map(x => `<tr><td><b>${x.label}</b><div class="small muted">${x.model}</div></td><td><span class="badge b-mute">Simulated · not connected</span></td><td class="num small">${READ_AT[id]} min ago (demo)</td></tr>`).join('')}</tbody></table></div>
       <div class="toolbar" style="margin-top:12px"><button class="btn" data-act="reading-new" data-id="${id}">${ic('edit')}Log manual pH / EC reading</button><button class="btn" data-act="integration" data-id="sensor gateway">${ic('plug')}Connect devices</button></div>`)}
     ${card('Equipment controls', `<div class="notice warn" style="margin-bottom:12px">${ic('alert')}<div>Every command needs your explicit confirmation. No controller is connected, so commands are logged but <b>not sent</b> to equipment.</div></div>
-      <div style="display:grid;gap:8px">${DEVICES.map(d => `<div class="split" style="justify-content:space-between;border:1px solid var(--line-2);border-radius:10px;padding:9px 12px"><div class="split">${ic(d.icon)}<div><b>${d.label}</b><div class="small muted">${d.action}</div></div></div><button class="btn sm" data-act="command" data-gh="${id}" data-id="${d.k}" ${can('commands') ? '' : 'disabled title="Not available for Farm Worker role"'}>${ic('power')}Send command…</button></div>`).join('')}</div>
+      <div style="display:grid;gap:8px">${DEVICES.map(d => `<div class="equip-row"><div class="split">${ic(d.icon)}<div><b>${d.label}</b><div class="small muted">${d.action}</div></div></div><button class="btn sm" data-act="command" data-gh="${id}" data-id="${d.k}" ${can('commands') ? '' : 'disabled title="Not available for Farm Worker role"'}>${ic('power')}Send command…</button></div>`).join('')}</div>
       ${cmds.length ? `<h3 style="margin:14px 0 6px">Command log</h3><div class="tbl-wrap"><table><tbody>${cmds.map(c => `<tr><td class="small num">${fmtDT(c.at)}</td><td class="small">${esc(c.label)}<div class="muted">${esc(c.by)}</div></td><td><span class="badge b-warn">Not sent</span></td></tr>`).join('')}</tbody></table></div>` : ''}`)}
     </div>
   </div>
@@ -780,7 +1363,7 @@ function vHarvest() {
   return `${pageHead('Harvest Management', 'Plan harvests, track readiness and record actual yield and quality.', '')}
   <div class="stats">${[['Harvested, last 90 days', num(last90.reduce((s, h) => s + h.actualKg, 0)) + ' kg'], ['Actual vs estimate', num(acc, 1) + '%'], ['Grade A share', num(gradeA, 0) + '%'], ['Ready within 7 days', act.filter(b => daysFrom(b.expectedHarvest) <= 7).length + ' batches']].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   <div class="grid g-main">
-    ${card('Harvest calendar', calendar(), { actions: `<button class="btn sm" data-act="cal-prev" aria-label="Previous month">${ic('left')}</button><b style="min-width:130px;text-align:center">${ui.calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button class="btn sm" data-act="cal-next" aria-label="Next month">${ic('chev')}</button><button class="btn sm" data-act="cal-today">Today</button>` })}
+    ${card('Harvest calendar', calendar(), { actions: `<button class="btn sm" data-act="cal-prev" aria-label="Previous month">${ic('left')}</button><b class="cal-title">${ui.calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button class="btn sm" data-act="cal-next" aria-label="Next month">${ic('chev')}</button><button class="btn sm" data-act="cal-today">Today</button>` })}
     ${card('Estimated vs actual', `<div class="chart-box">${makeChart('cEva', { type: 'bar', aria: 'Estimated versus actual yield for the last 12 harvests', data: { labels: recent.map(h => `${h.id}`), datasets: [{ label: 'Estimated kg', data: recent.map(h => h.estKg), backgroundColor: col('--line'), borderRadius: 4 }, { label: 'Actual kg', data: recent.map(h => h.actualKg), backgroundColor: col('--accent'), borderRadius: 4 }] }, options: { scales: { x: { grid: { display: false }, ticks: { maxRotation: 60, font: { size: 10 } } }, y: {} } } })}</div><div class="legend" style="margin-top:8px"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Planned harvest</span><span><i style="background:var(--card);border:1px solid var(--line)"></i>Recorded harvest</span></div>`, { sub: 'Last 12 recorded harvests' })}
   </div>
   ${card('Readiness tracking', pipelineTable(act, true), { sub: 'All active batches, soonest first' })}
@@ -1072,7 +1655,7 @@ function vAssistant() {
   return `${pageHead('Farm Assistant', 'Your agriculture and farm operations assistant. Instant data retrieval for farm records, and AI intelligence for agricultural guidance and technology recommendations.')}
   
   ${card('Conversation', `<div class="chat" id="chatLog" aria-live="polite">${ui.chat.length ? ui.chat.map(m => `<div class="msg ${m.role === 'user' ? 'user' : 'bot'}">${m.role === 'user' ? esc(m.text) : linkify(m.text)}${m.role !== 'user' ? `<span class="src">${m.src === 'gemini' ? '<span class="tag live">Gemini AI</span>' : m.src === 'direct' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Direct Data (Instant)</span>' : m.src === 'kb' ? '<span class="tag live" style="background:var(--ok-bg);color:var(--ok)">Knowledge Base (Instant)</span>' : m.src === 'claude' ? '<span class="tag live">Claude</span>' : m.src === 'error' ? '<span class="tag warn">API Error</span>' : m.src === 'pending' ? '<span class="tag">Thinking…</span>' : '<span class="tag sim">Simulated</span>'}</span>` : ''}${m.sources && m.sources.length ? `<div class="sources small muted" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px"><span style="width:100%;font-weight:600">Web Sources:</span>${m.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener" class="tag sm" style="text-decoration:underline">${esc(s.title || s.uri)}</a>`).join('')}</div>` : ''}</div>`).join('') : empty('chat', 'Ask a question about your farm or agriculture', 'Try one of the suggestions below.')}</div>
-    <div class="toolbar" style="margin:12px 0">${sugg.map(s => `<button class="btn sm" data-act="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+    <div class="assistant-prompts">${sugg.map(s => `<button class="btn sm wrap" data-act="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
     <form id="chatForm" class="toolbar" novalidate><label class="sr" for="chatIn">Your question</label><input id="chatIn" class="input grow" placeholder="e.g. Which supplies are low, or how does NFT hydroponics work?" autocomplete="off" ${ui.chatBusy ? 'disabled' : ''}><button class="btn primary" type="submit" ${ui.chatBusy ? 'disabled' : ''}>${ui.chatBusy ? '<span class="spinner"></span>' : ic('send')}Send</button>${ui.chat.length ? '<button class="btn" type="button" data-act="chat-clear">Clear</button>' : ''}</form>`)}`;
 }
 function recordLink(id) {
@@ -1734,6 +2317,43 @@ function closeNav() { $('#sidebar').classList.remove('open'); $('#overlay').clas
 /* ================= Events ================= */
 document.addEventListener('click', async e => {
   const t = e.target;
+  const hvScroll = t.closest('[data-hv-scroll]');
+  if (hvScroll) {
+    e.preventDefault();
+    const targetEl = document.getElementById(hvScroll.dataset.hvScroll);
+    if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  const authNav = t.closest('[data-act="auth-nav"]');
+  if (authNav) {
+    e.preventDefault();
+    AuthState.authView = authNav.dataset.view || 'welcome';
+    AuthState.error = '';
+    AuthState.successMsg = '';
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const pwdToggle = t.closest('[data-act="toggle-pwd"]');
+  if (pwdToggle) {
+    e.preventDefault();
+    const inp = document.getElementById(pwdToggle.dataset.target);
+    if (inp) {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      pwdToggle.textContent = inp.type === 'password' ? 'Show' : 'Hide';
+    }
+    return;
+  }
+  const signOutBtn = t.closest('[data-act="auth-signout"]');
+  if (signOutBtn) {
+    e.preventDefault();
+    if (sbClient) await sbClient.auth.signOut();
+    AuthState.session = null;
+    AuthState.user = null;
+    AuthState.authView = 'welcome';
+    render();
+    return;
+  }
   if (t.closest('[data-close]')) { closeModal(); return; }
   const optEl = t.closest('#gresults [role=option]'); if (optEl) { pickSearch(+optEl.dataset.i); return; }
   const mobOpt = t.closest('#mobileSearchResults [role=option]'); if (mobOpt) { pickMobileSearch(+mobOpt.dataset.mi); return; }
@@ -1804,6 +2424,19 @@ document.addEventListener('keydown', e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'suPwd') {
+    const val = e.target.value;
+    const lenRule = $('#ruleLen');
+    if (lenRule) {
+      if (val.length >= 8) {
+        lenRule.classList.add('valid');
+        lenRule.textContent = '✓ At least 8 characters';
+      } else {
+        lenRule.classList.remove('valid');
+        lenRule.textContent = '• At least 8 characters';
+      }
+    }
+  }
   if (e.target && e.target.id === 'mobileSearchInp') { renderMobileSearch(); }
   const f = e.target.dataset && e.target.dataset.filter;
   if (f) { const [a, b] = f.split('.'); if (b) ui[a][b] = e.target.value; else ui[a] = e.target.value; render(); }
@@ -1821,6 +2454,144 @@ document.addEventListener('change', async e => {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
+  if (f.id === 'signInForm') {
+    AuthState.error = '';
+    AuthState.loading = true;
+    render();
+    const email = $('#siEmail').value.trim();
+    const password = $('#siPwd').value;
+    try {
+      if (sbClient) {
+        const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        AuthState.session = data.session;
+        AuthState.user = data.user;
+        await loadUserFarms();
+      } else {
+        AuthState.session = { access_token: 'demo-token' };
+        AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
+        AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', role: 'owner' }];
+        AuthState.role = 'owner';
+      }
+      toast('Signed in successfully.');
+    } catch (er) {
+      AuthState.error = er.message || 'Invalid email or password.';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
+  if (f.id === 'signUpForm') {
+    AuthState.error = '';
+    AuthState.successMsg = '';
+    const name = $('#suName').value.trim();
+    const email = $('#suEmail').value.trim();
+    const password = $('#suPwd').value;
+    const confirm = $('#suPwdConfirm').value;
+    if (password !== confirm) {
+      AuthState.error = 'Passwords do not match.';
+      render();
+      return;
+    }
+    if (password.length < 8) {
+      AuthState.error = 'Password must be at least 8 characters.';
+      render();
+      return;
+    }
+    AuthState.loading = true;
+    render();
+    try {
+      if (sbClient) {
+        const { data, error } = await sbClient.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name } }
+        });
+        if (error) throw error;
+        if (data.session) {
+          AuthState.session = data.session;
+          AuthState.user = data.user;
+          await loadUserFarms();
+          toast('Account created successfully.');
+        } else {
+          AuthState.successMsg = 'Check your email to confirm your account before signing in.';
+        }
+      } else {
+        AuthState.successMsg = 'Check your email to confirm your account (Demo mode: sign in directly).';
+      }
+    } catch (er) {
+      AuthState.error = er.message || 'Could not create account.';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
+  if (f.id === 'forgotForm') {
+    AuthState.error = '';
+    AuthState.successMsg = '';
+    const email = $('#fgEmail').value.trim();
+    AuthState.loading = true;
+    render();
+    try {
+      if (sbClient) {
+        const { error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+        if (error) throw error;
+      }
+      AuthState.successMsg = 'Password reset instructions sent to your email.';
+    } catch (er) {
+      AuthState.error = er.message || 'Could not send reset email.';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
+  if (f.id === 'resetForm') {
+    AuthState.error = '';
+    AuthState.successMsg = '';
+    const password = $('#rsPwd').value;
+    if (password.length < 8) {
+      AuthState.error = 'Password must be at least 8 characters.';
+      render();
+      return;
+    }
+    AuthState.loading = true;
+    render();
+    try {
+      if (sbClient) {
+        const { error } = await sbClient.auth.updateUser({ password });
+        if (error) throw error;
+      }
+      AuthState.successMsg = 'Password updated successfully!';
+      setTimeout(() => { AuthState.authView = 'signin'; render(); }, 1500);
+    } catch (er) {
+      AuthState.error = er.message || 'Could not update password.';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
+  if (f.id === 'createFarmForm') {
+    AuthState.error = '';
+    const name = $('#cfName').value.trim();
+    const location = $('#cfLoc').value.trim();
+    AuthState.loading = true;
+    render();
+    try {
+      if (sbClient) {
+        const { data, error } = await sbClient.rpc('create_farm', { p_name: name, p_location: location });
+        if (error) throw error;
+      }
+      await loadUserFarms();
+      toast('Farm created successfully.');
+    } catch (er) {
+      AuthState.farms = [{ farmId: 'riverside', name, location, role: 'owner' }];
+      AuthState.currentFarmId = 'riverside';
+      AuthState.role = 'owner';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
   if (f.id === 'modalForm') return submitModal(f);
   if (f.id === 'chatForm') { const v = $('#chatIn').value; $('#chatIn').value = ''; return ask(v); }
   if (f.id === 'targetsForm') {
@@ -1895,6 +2666,7 @@ new MutationObserver(scheduleRender).observe(document.documentElement, { attribu
   buildDemo();
   initTheme();
   getKnowledgeBase();
+  await initAuth();
   ui.route = ROUTES[location.hash.replace('#', '')] ? location.hash.replace('#', '') : 'dashboard';
   render();
   const samplePromise = (async () => {
@@ -1904,3 +2676,4 @@ new MutationObserver(scheduleRender).observe(document.documentElement, { attribu
   render();
   await samplePromise;
 })();
+

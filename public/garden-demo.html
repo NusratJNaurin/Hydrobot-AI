@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hydrovest Tech — 3D Live Garden Demo (Stage 1)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #ebe7df;
+      color: #1e293b;
+    }
+    .demo-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      width: 100%;
+      height: 100%;
+    }
+    .controls-panel {
+      background: #f8f6f2;
+      border-right: 1px solid #d6d0c4;
+      padding: 18px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 2;
+    }
+    .panel-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .panel-subtitle {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    .control-group {
+      background: #ffffff;
+      border: 1px solid #e2ddd3;
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .group-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #475569;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    button {
+      cursor: pointer;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #1e293b;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    }
+    button:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+    button.active {
+      background: #0f766e;
+      border-color: #0f766e;
+      color: #ffffff;
+    }
+    button.warn-btn {
+      border-color: #f59e0b;
+      color: #b45309;
+    }
+    button.warn-btn:hover { background: #fffbeb; }
+    button.danger-btn {
+      border-color: #ef4444;
+      color: #b91c1c;
+    }
+    button.danger-btn:hover { background: #fef2f2; }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 90px;
+      gap: 8px;
+      align-items: center;
+    }
+    select, input[type="number"] {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 12px;
+      background: #ffffff;
+      color: #0f172a;
+    }
+    .readout-box {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      min-height: 62px;
+    }
+    .stage-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+    }
+    #garden-container {
+      width: 100%;
+      height: 100%;
+    }
+    .stage-hint {
+      position: absolute;
+      bottom: 14px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(6px);
+      border: 1px solid #d6d0c4;
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 12px;
+      color: #334155;
+      pointer-events: none;
+    }
+    @media (max-width: 820px) {
+      .demo-layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 270px;
+      }
+      .controls-panel {
+        order: 2;
+        border-right: none;
+        border-top: 1px solid #d6d0c4;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-layout">
+    <aside class="controls-panel">
+      <div>
+        <h1 class="panel-title">Hydrovest Tech 3D Demo</h1>
+        <p class="panel-subtitle">Stage 1 standalone harness for <code>garden-scene.js</code> &amp; <code>garden-layout.json</code>.</p>
+      </div>
+
+      <section class="control-group">
+        <span class="group-label">setPumpState(state)</span>
+        <div class="btn-row" id="pump-buttons">
+          <button type="button" data-pump="on" class="active">Pump On</button>
+          <button type="button" data-pump="off">Pump Off</button>
+          <button type="button" data-pump="error" class="danger-btn">Pump Error</button>
+        </div>
+      </section>
+
+      <section class="control-group">
+        <span class="group-label">setSensorValue(id, value, status)</span>
+        <div class="field-row">
+          <select id="sensor-select">
+            <option value="sensor-1">sensor-1 (Reservoir EC)</option>
+            <option value="sensor-2">sensor-2 (NFT Flow)</option>
+            <option value="sensor-3">sensor-3 (Tower pH)</option>
+            <option value="sensor-4">sensor-4 (Rack Temp)</option>
+          </select>
+          <input id="sensor-value" type="number" step="0.1" value="2.1" />
+        </div>
+        <div class="btn-row">
+          <button type="button" data-sensor-status="ok">Set OK</button>
+          <button type="button" data-sensor-status="warn" class="warn-btn">Set Warn</button>
+          <button type="button" data-sensor-status="crit" class="danger-btn">Set Crit</button>
+        </div>
+      </section>
+
+      <section class="control-group">
+        <span class="group-label">setSensorOffline(id, offline)</span>
+        <div class="btn-row">
+          <button type="button" id="btn-sensor-offline">Mark Offline</button>
+          <button type="button" id="btn-sensor-online">Bring Online</button>
+        </div>
+      </section>
+
+      <section class="control-group">
+        <span class="group-label">highlightObject(id)</span>
+        <div class="btn-row" id="highlight-buttons">
+          <button type="button" data-hl="bed-1">bed-1</button>
+          <button type="button" data-hl="bed-2">bed-2</button>
+          <button type="button" data-hl="channel-bed-1">channel-bed-1</button>
+          <button type="button" data-hl="channel-bed-2">channel-bed-2</button>
+          <button type="button" data-hl="tower-1">tower-1</button>
+          <button type="button" data-hl="tower-5">tower-5</button>
+          <button type="button" data-hl="tank-1">tank-1</button>
+          <button type="button" data-hl="pump-1">pump-1</button>
+          <button type="button" data-hl="sensor-1">sensor-1</button>
+          <button type="button" data-hl="">Clear</button>
+        </div>
+      </section>
+
+      <section class="control-group">
+        <span class="group-label">Inspector / Last Action</span>
+        <div class="readout-box" id="status-readout">Loading 3D scene...</div>
+      </section>
+    </aside>
+
+    <main class="stage-wrap">
+      <div id="garden-container"></div>
+      <div class="stage-hint">Drag to orbit · Scroll to zoom · Click any bed, tower, tank, pump, or sensor</div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { mountGarden } from '/js/garden-scene.js';
+
+    const container = document.getElementById('garden-container');
+    const readoutEl = document.getElementById('status-readout');
+    const sensorSelect = document.getElementById('sensor-select');
+    const sensorValueInput = document.getElementById('sensor-value');
+
+    function logStatus(msg) {
+      readoutEl.textContent = msg;
+    }
+
+    const garden = mountGarden(container, {
+      onSelect(selection) {
+        if (!selection) {
+          logStatus('Selected: none (highlight cleared)');
+        } else {
+          logStatus(`Selected 3D object:\nid: ${selection.id}\nlabel: ${selection.label}\ncategory: ${selection.category}`);
+        }
+      }
+    });
+
+    garden.ready
+      .then(() => {
+        logStatus(`Scene ready (${garden.getLayoutIds().length} addressable objects).`);
+      })
+      .catch((err) => {
+        logStatus(`Error loading scene: ${err.message}`);
+      });
+
+    // Pump state controls
+    const pumpBtns = document.querySelectorAll('#pump-buttons button');
+    pumpBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pumpBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const state = btn.dataset.pump;
+        garden.setPumpState(state);
+        logStatus(`Called setPumpState('${state}')`);
+      });
+    });
+
+    // Sensor value controls
+    document.querySelectorAll('[data-sensor-status]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = sensorSelect.value;
+        const val = Number(sensorValueInput.value);
+        const status = btn.dataset.sensorStatus;
+        garden.setSensorValue(id, Number.isFinite(val) ? val : 0, status);
+        logStatus(`Called setSensorValue('${id}', ${val}, '${status}')`);
+      });
+    });
+
+    // Sensor offline controls
+    document.getElementById('btn-sensor-offline').addEventListener('click', () => {
+      const id = sensorSelect.value;
+      garden.setSensorOffline(id, true);
+      logStatus(`Called setSensorOffline('${id}', true)`);
+    });
+
+    document.getElementById('btn-sensor-online').addEventListener('click', () => {
+      const id = sensorSelect.value;
+      garden.setSensorOffline(id, false);
+      logStatus(`Called setSensorOffline('${id}', false)`);
+    });
+
+    // Highlight controls
+    const hlBtns = document.querySelectorAll('#highlight-buttons button');
+    hlBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.hl || null;
+        garden.highlightObject(id);
+        logStatus(id ? `Called highlightObject('${id}')` : 'Called highlightObject(null)');
+      });
+    });
+
+    window.addEventListener('beforeunload', () => {
+      garden.dispose();
+    });
+  </script>
+</body>
+</html>

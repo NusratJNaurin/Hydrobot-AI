@@ -1,0 +1,385 @@
+{
+  "version": "1.0.0",
+  "garden": {
+    "name": "Hydrovest Tech Digital Twin",
+    "footprintMeters": {
+      "width": 12.0,
+      "depth": 8.0,
+      "plinthHeight": 0.24
+    },
+    "camera": {
+      "position": [11.5, 9.8, 11.5],
+      "target": [0.0, 0.75, 0.25],
+      "zoom": 1.0,
+      "minZoom": 0.65,
+      "maxZoom": 2.4
+    },
+    "zones": [
+      {
+        "id": "zone-apron",
+        "type": "concrete",
+        "position": [0, 0, 0],
+        "size": [12.0, 8.0]
+      },
+      {
+        "id": "zone-aisle",
+        "type": "weed_mat",
+        "position": [-2.95, 0.008, 1.35],
+        "size": [1.15, 4.3]
+      },
+      {
+        "id": "zone-gravel",
+        "type": "gravel",
+        "position": [2.5, 0.006, 0.95],
+        "size": [5.4, 3.8],
+        "curbHeight": 0.14,
+        "curbThickness": 0.14
+      },
+      {
+        "id": "zone-utility-pad",
+        "type": "utility_pad",
+        "position": [-3.8, 0.012, -2.5],
+        "size": [3.2, 1.9]
+      }
+    ]
+  },
+  "frames": [
+    {
+      "id": "greenhouse-frame-1",
+      "type": "galvanized_truss",
+      "position": [-2.95, 0, -0.9],
+      "width": 3.8,
+      "height": 2.35,
+      "bays": 2
+    },
+    {
+      "id": "tower-support-back",
+      "type": "pipe_gantry",
+      "position": [2.5, 0, 0.05],
+      "width": 4.9,
+      "height": 2.45
+    },
+    {
+      "id": "tower-support-front",
+      "type": "pipe_gantry",
+      "position": [2.5, 0, 1.8],
+      "width": 4.9,
+      "height": 2.45
+    }
+  ],
+  "tanks": [
+    {
+      "id": "tank-1",
+      "label": "Main Nutrient Tank (1000 L)",
+      "position": [-4.55, 0, -2.5],
+      "rotation": [0, 0.35, 0],
+      "radius": 0.62,
+      "height": 1.48,
+      "capacityLiters": 1000,
+      "fillLevel": 0.78,
+      "color": "#4f6d65"
+    }
+  ],
+  "pumps": [
+    {
+      "id": "pump-1",
+      "label": "Main Circulation Pump",
+      "position": [-3.15, 0, -2.45],
+      "rotation": [0, 0, 0],
+      "initialState": "on"
+    }
+  ],
+  "shelvedBeds": [
+    {
+      "id": "bed-1",
+      "label": "Shelved Grow Rack A",
+      "position": [0.25, 0, -2.55],
+      "rotation": [0, 0, 0],
+      "width": 2.35,
+      "depth": 0.92,
+      "height": 2.02,
+      "tiers": 3,
+      "plantType": "lettuce",
+      "colsPerTier": 6,
+      "rowsPerTier": 2
+    },
+    {
+      "id": "bed-2",
+      "label": "Shelved Grow Rack B",
+      "position": [3.0, 0, -2.55],
+      "rotation": [0, 0, 0],
+      "width": 2.35,
+      "depth": 0.92,
+      "height": 2.02,
+      "tiers": 3,
+      "plantType": "lettuce",
+      "colsPerTier": 6,
+      "rowsPerTier": 2
+    }
+  ],
+  "channelBeds": [
+    {
+      "id": "channel-bed-1",
+      "label": "NFT Growing Channels West",
+      "position": [-4.25, 0, 1.35],
+      "rotation": [0, 0, 0],
+      "width": 1.25,
+      "length": 3.85,
+      "height": 0.82,
+      "channels": 5,
+      "plantsPerChannel": 11,
+      "plantType": "lettuce"
+    },
+    {
+      "id": "channel-bed-2",
+      "label": "NFT Growing Channels East",
+      "position": [-1.65, 0, 1.35],
+      "rotation": [0, 0, 0],
+      "width": 1.25,
+      "length": 3.85,
+      "height": 0.82,
+      "channels": 5,
+      "plantsPerChannel": 11,
+      "plantType": "lettuce"
+    }
+  ],
+  "towers": [
+    {
+      "id": "tower-1",
+      "label": "Vertical Tower 1",
+      "position": [0.7, 0.02, 0.05],
+      "rotation": [0, 0.25, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-2",
+      "label": "Vertical Tower 2",
+      "position": [1.9, 0.02, 0.05],
+      "rotation": [0, 0.65, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-3",
+      "label": "Vertical Tower 3",
+      "position": [3.1, 0.02, 0.05],
+      "rotation": [0, 0.15, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-4",
+      "label": "Vertical Tower 4",
+      "position": [4.3, 0.02, 0.05],
+      "rotation": [0, 0.45, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-5",
+      "label": "Vertical Tower 5",
+      "position": [0.7, 0.02, 1.8],
+      "rotation": [0, 0.55, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-6",
+      "label": "Vertical Tower 6",
+      "position": [1.9, 0.02, 1.8],
+      "rotation": [0, 0.1, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-7",
+      "label": "Vertical Tower 7",
+      "position": [3.1, 0.02, 1.8],
+      "rotation": [0, 0.72, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    },
+    {
+      "id": "tower-8",
+      "label": "Vertical Tower 8",
+      "position": [4.3, 0.02, 1.8],
+      "rotation": [0, 0.3, 0],
+      "height": 2.08,
+      "tiers": 8,
+      "plantType": "tower"
+    }
+  ],
+  "vines": [],
+  "sensors": [
+    {
+      "id": "sensor-1",
+      "label": "Reservoir EC",
+      "unit": "mS/cm",
+      "initialValue": 1.8,
+      "initialStatus": "ok",
+      "position": [-3.78, 1.15, -1.95],
+      "rotation": [0, 0.4, 0],
+      "mountHeight": 1.15
+    },
+    {
+      "id": "sensor-2",
+      "label": "NFT Flow",
+      "unit": "L/min",
+      "initialValue": 12.4,
+      "initialStatus": "ok",
+      "position": [-2.95, 0.92, -0.62],
+      "rotation": [0, 0.15, 0],
+      "mountHeight": 0.92
+    },
+    {
+      "id": "sensor-3",
+      "label": "Tower pH",
+      "unit": "pH",
+      "initialValue": 6.1,
+      "initialStatus": "ok",
+      "position": [0.08, 1.35, 1.8],
+      "rotation": [0, 0.5, 0],
+      "mountHeight": 1.35
+    },
+    {
+      "id": "sensor-4",
+      "label": "Rack Temp",
+      "unit": "°C",
+      "initialValue": 22.8,
+      "initialStatus": "ok",
+      "position": [-1.05, 1.42, -2.1],
+      "rotation": [0, 0.3, 0],
+      "mountHeight": 1.42
+    }
+  ],
+  "pipes": [
+    {
+      "id": "pipe-tank-to-pump",
+      "kind": "suction",
+      "radius": 0.032,
+      "points": [
+        [-3.95, 0.28, -2.5],
+        [-3.65, 0.28, -2.5],
+        [-3.45, 0.26, -2.45]
+      ]
+    },
+    {
+      "id": "pipe-pump-main-riser",
+      "kind": "supply",
+      "radius": 0.028,
+      "points": [
+        [-3.15, 0.42, -2.45],
+        [-3.15, 0.85, -2.45],
+        [-2.75, 0.85, -2.05],
+        [-2.75, 0.24, -1.75]
+      ]
+    },
+    {
+      "id": "pipe-supply-channels",
+      "kind": "supply",
+      "radius": 0.024,
+      "points": [
+        [-2.75, 0.24, -1.75],
+        [-2.75, 0.24, -0.78],
+        [-4.25, 0.24, -0.78],
+        [-4.25, 0.83, -0.58]
+      ]
+    },
+    {
+      "id": "pipe-supply-channel-east",
+      "kind": "supply",
+      "radius": 0.024,
+      "points": [
+        [-2.75, 0.24, -0.78],
+        [-1.65, 0.24, -0.78],
+        [-1.65, 0.83, -0.58]
+      ]
+    },
+    {
+      "id": "pipe-supply-racks",
+      "kind": "supply",
+      "radius": 0.024,
+      "points": [
+        [-2.75, 0.85, -2.05],
+        [-1.1, 0.85, -2.05],
+        [-1.1, 0.18, -2.55],
+        [4.15, 0.18, -2.55]
+      ]
+    },
+    {
+      "id": "pipe-supply-towers-header",
+      "kind": "supply",
+      "radius": 0.024,
+      "points": [
+        [-2.75, 0.24, -1.75],
+        [0.08, 0.24, -1.75],
+        [0.08, 0.24, 0.05],
+        [0.08, 2.38, 0.05],
+        [4.35, 2.38, 0.05]
+      ]
+    },
+    {
+      "id": "pipe-supply-towers-front",
+      "kind": "supply",
+      "radius": 0.024,
+      "points": [
+        [0.08, 2.38, 0.05],
+        [0.08, 2.38, 1.8],
+        [4.35, 2.38, 1.8]
+      ]
+    },
+    {
+      "id": "pipe-return-channels",
+      "kind": "return",
+      "radius": 0.03,
+      "points": [
+        [-4.25, 0.62, 3.25],
+        [-4.25, 0.12, 3.35],
+        [-5.35, 0.12, 3.35],
+        [-5.35, 0.12, -2.5],
+        [-5.1, 0.24, -2.5]
+      ]
+    },
+    {
+      "id": "pipe-return-channel-east",
+      "kind": "return",
+      "radius": 0.028,
+      "points": [
+        [-1.65, 0.62, 3.25],
+        [-1.65, 0.12, 3.35],
+        [-4.25, 0.12, 3.35]
+      ]
+    },
+    {
+      "id": "pipe-return-towers-back",
+      "kind": "return",
+      "radius": 0.026,
+      "points": [
+        [4.35, 0.08, 0.05],
+        [0.45, 0.08, 0.05],
+        [-0.1, 0.08, -1.45],
+        [-4.55, 0.08, -1.45],
+        [-4.55, 0.24, -1.92]
+      ]
+    },
+    {
+      "id": "pipe-return-towers-front",
+      "kind": "return",
+      "radius": 0.026,
+      "points": [
+        [4.35, 0.08, 1.8],
+        [0.45, 0.08, 1.8],
+        [-0.1, 0.08, 1.8],
+        [-0.1, 0.08, -1.45]
+      ]
+    }
+  ]
+}

@@ -10,6 +10,9 @@
 </head>
 <body>
 
+<div class="cursor-dot" id="cursorDot" aria-hidden="true"></div>
+<div class="cursor-ring" id="cursorRing" aria-hidden="true"></div>
+
 <div class="overlay" id="overlay"></div>
 <aside class="sidebar" id="sidebar" aria-label="Main navigation">
   <a class="brand" href="#dashboard" aria-label="Hydrobot.Ai home">
@@ -35,7 +38,7 @@
     <div class="top-actions desktop-actions">
       <label for="farmSel" class="sr">Select farm</label>
       <select id="farmSel" class="select">
-        <option value="riverside">Riverside Hydro Farm</option>
+        <option value="hydrovest">Hydrovest Farm</option>
         <option value="hilltop">Hilltop Annex</option>
       </select>
       <button class="icon-btn" id="themeBtn" aria-label="Toggle theme" title="Toggle theme"></button>
@@ -60,6 +63,9 @@
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/live-garden.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
