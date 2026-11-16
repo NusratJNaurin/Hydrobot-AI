@@ -2816,7 +2816,7 @@ document.addEventListener('submit', async e => {
           AuthState.successMsg = 'Check your email to confirm your account before signing in.';
         }
       } else {
-        AuthState.successMsg = 'Check your email to confirm your account (Demo mode: sign in directly).';
+        AuthState.successMsg = 'Check your email to confirm your account before signing in.';
       }
     } catch (er) {
       AuthState.error = er.message || 'Could not create account.';
