@@ -3,8 +3,14 @@
   "buildCommand": null,
   "outputDirectory": "public",
   "functions": {
-    "api/farm-assistant.js": { "maxDuration": 30 }
+    "api/farm-assistant.js": { "maxDuration": 30 },
+    "api/config.js": { "maxDuration": 10 },
+    "api/auth-signup-check.js": { "maxDuration": 10 }
   },
+  "rewrites": [
+    { "source": "/js/config.js", "destination": "/api/config" },
+    { "source": "/api/auth/signup-check", "destination": "/api/auth-signup-check" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

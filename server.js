@@ -360,8 +360,103 @@ function serveStatic(req, res, pathname) {
   });
 }
 
+function parseCsvList(raw) {
+  return String(raw || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isEmailAllowedByServerAllowlist(email) {
+  loadEnv();
+  const allowedEmails = parseCsvList(process.env.ALLOWED_SIGNUP_EMAILS);
+  const allowedDomains = parseCsvList(process.env.ALLOWED_SIGNUP_DOMAINS);
+  if (!allowedEmails.length && !allowedDomains.length) return { configured: false, allowed: true };
+  const normalized = String(email || '').trim().toLowerCase();
+  const domain = normalized.includes('@') ? normalized.split('@').pop() : '';
+  return {
+    configured: true,
+    allowed: allowedEmails.includes(normalized) || Boolean(domain && allowedDomains.includes(domain)),
+  };
+}
+
+async function handleSignupCheck(body) {
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw Object.assign(new Error('Please enter a valid email address.'), { status: 400, code: 'invalid_email' });
+  }
+
+  const allowlist = isEmailAllowedByServerAllowlist(email);
+  if (allowlist.configured && !allowlist.allowed) {
+    throw Object.assign(new Error('Access restricted: This email address is not approved for registration.'), { status: 403, code: 'email_not_approved' });
+  }
+
+  loadEnv();
+  const sbUrl = (process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+  const sbAnon = (process.env.SUPABASE_ANON_KEY || '').trim();
+  if (!sbUrl || !sbAnon || sbUrl === 'https://your-project.supabase.co' || sbAnon === 'your-anon-key') {
+    throw Object.assign(new Error('Registration is unavailable because Supabase authentication is not configured in this environment.'), {
+      status: 503,
+      code: 'supabase_not_configured',
+    });
+  }
+
+  try {
+    const resp = await fetch(`${sbUrl}/auth/v1/settings`, {
+      method: 'GET',
+      headers: { apikey: sbAnon },
+    });
+    if (resp.ok) {
+      const settings = await resp.json().catch(() => null);
+      if (settings && settings.disable_signup === true) {
+        throw Object.assign(new Error('Public registration is disabled. Only invited or pre-approved accounts can sign in.'), {
+          status: 403,
+          code: 'signup_disabled',
+        });
+      }
+    }
+  } catch (err) {
+    if (err?.status) throw err;
+    console.warn('Unable to inspect Supabase auth settings:', err?.message || err);
+  }
+
+  return {
+    allowed: true,
+    supabaseConfigured: true,
+    allowlistEnforced: allowlist.configured,
+  };
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/signup-check') {
+    if (!verifySameOrigin(req)) {
+      return sendJson(res, 403, { error: 'Cross-origin requests are not allowed.', code: 'forbidden_origin' });
+    }
+    const ctype = String(req.headers['content-type'] || '').toLowerCase();
+    if (!ctype.includes('application/json')) {
+      return sendJson(res, 415, { error: 'Content-Type must be application/json.', code: 'unsupported_media_type' });
+    }
+    const rl = checkRateLimit(req);
+    if (!rl.allowed) {
+      return sendJson(res, 429, { error: 'Too many registration attempts. Please wait a moment before trying again.', code: 'rate_limited' }, { 'Retry-After': String(rl.retryAfter) });
+    }
+
+    try {
+      const body = await readBody(req);
+      const data = await handleSignupCheck(body);
+      sendJson(res, 200, data);
+    } catch (error) {
+      const status = Number(error?.status) || 500;
+      const code = error?.code || 'server_error';
+      const message = status >= 400 && status < 500 || status === 503
+        ? error.message
+        : 'Unable to verify registration eligibility right now.';
+      sendJson(res, status, { allowed: false, error: message, code });
+    }
+    return;
+  }
 
   if (req.method === 'POST' && url.pathname === '/api/farm-assistant') {
     if (!verifySameOrigin(req)) {

@@ -573,7 +573,8 @@ if (AuthState.isDemoAuth) {
   try { const r = localStorage.getItem('hydrobot.role'); if (r && ROLES[r]) ui.role = r; } catch (e) { }
 }
 
-function resetSensitiveStateOnSignOut() {
+function resetSensitiveStateOnSignOut(opts = {}) {
+  const preserveAuthView = Boolean(opts && opts.preserveAuthView);
   AuthState.session = null;
   AuthState.user = null;
   AuthState.profile = null;
@@ -581,7 +582,9 @@ function resetSensitiveStateOnSignOut() {
   AuthState.farmMembers = [];
   AuthState.equipmentCommands = [];
   AuthState.role = AuthState.isDemoAuth ? 'owner' : 'worker';
-  AuthState.authView = 'welcome';
+  if (!preserveAuthView) {
+    AuthState.authView = 'welcome';
+  }
   ui.chat = [];
   ui.disease = null;
   if (!AuthState.isDemoAuth) {
@@ -609,7 +612,9 @@ async function initAuth() {
     const errorCode = urlParams.get('error_code') || hashParams.get('error_code');
     const isRecoveryHash = window.location.hash.includes('type=recovery');
     const hasCode = urlParams.has('code') || hashParams.has('code');
-    const hasTokenHash = urlParams.has('token_hash') || hashParams.has('token_hash') || window.location.hash.includes('access_token=');
+    const tokenHash = urlParams.get('token_hash') || hashParams.get('token_hash');
+    const tokenType = urlParams.get('type') || hashParams.get('type') || 'signup';
+    const hasAccessToken = window.location.hash.includes('access_token=');
 
     if (errorDescription || errorCode) {
       AuthState.authView = 'verify';
@@ -630,12 +635,34 @@ async function initAuth() {
             AuthState.authView = 'welcome';
             render();
           }, 1800);
+        } else {
+          throw new Error('Verification did not return an active session.');
         }
       } catch (er) {
         AuthState.verifyStatus = 'error';
         AuthState.error = er?.message || 'Verification failed or link expired.';
       }
-    } else if (hasTokenHash && !isRecoveryHash) {
+    } else if (tokenHash && !isRecoveryHash) {
+      AuthState.authView = 'verify';
+      AuthState.verifyStatus = 'loading';
+      try {
+        const { data, error } = await sbClient.auth.verifyOtp({ token_hash: tokenHash, type: tokenType });
+        if (error) throw error;
+        if (data?.session) {
+          AuthState.session = data.session;
+          AuthState.user = data.user;
+          await loadUserFarms();
+        }
+        AuthState.verifyStatus = 'success';
+        setTimeout(() => {
+          AuthState.authView = data?.session ? 'welcome' : 'signin';
+          render();
+        }, 1800);
+      } catch (er) {
+        AuthState.verifyStatus = 'error';
+        AuthState.error = er?.message || 'The confirmation link has expired or is invalid.';
+      }
+    } else if (hasAccessToken && !isRecoveryHash) {
       AuthState.authView = 'verify';
       AuthState.verifyStatus = 'success';
       setTimeout(() => {
@@ -658,8 +685,11 @@ async function initAuth() {
     }
 
     sbClient.auth.onAuthStateChange(async (event, nextSession) => {
-      if (event === 'SIGNED_OUT' || !nextSession) {
+      if (event === 'SIGNED_OUT') {
         resetSensitiveStateOnSignOut();
+      } else if (!nextSession) {
+        const keepCurrentAuthView = ['verify', 'reset', 'signin', 'signup', 'forgot'].includes(AuthState.authView);
+        resetSensitiveStateOnSignOut({ preserveAuthView: keepCurrentAuthView });
       } else {
         AuthState.session = nextSession;
         AuthState.user = nextSession?.user || null;
@@ -781,260 +811,59 @@ function renderAuthScreen() {
   return renderWelcome();
 }
 
-function renderWelcome() {
-  const brandSvg = '<span class="brand-mark" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg></span>';
-  const fallbackMarkup = (icon, label) => `<div class="hv-media-fallback">${ic(icon)}<span>${label}</span></div>`;
-
+function hydrobotLogoHtml(extraClass = '') {
   return `
-    <div class="hv-welcome">
-      <header class="hv-topbar" aria-label="Hydrovest welcome navigation">
-        <a href="#" class="hv-logo-lockup" data-act="auth-nav" data-view="welcome" aria-label="Hydrovest home">
-          ${brandSvg}
-          <span class="hv-wordmark">Hydro<span>vest</span></span>
-        </a>
-        <nav class="hv-nav" aria-label="Welcome sections">
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-systems">Growing Systems</button>
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-produce">Water &amp; Crops</button>
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-platform">Smart Operations</button>
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-access">Farm Portal</button>
-        </nav>
-        <div class="hv-top-cta">
-          <button type="button" class="hv-btn sm hv-btn-secondary" data-act="auth-nav" data-view="signin">Sign in</button>
-          <button type="button" class="hv-btn sm hv-btn-primary" data-act="auth-nav" data-view="signup">Create account</button>
-        </div>
-      </header>
+    <a href="#" class="hb-brand ${extraClass}" data-act="auth-nav" data-view="welcome" aria-label="Hydrobot AI home">
+      <span class="hb-brand-mark" aria-hidden="true">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>
+      </span>
+      <span class="hb-brand-text">Hydrobot <span>AI</span></span>
+    </a>
+  `;
+}
 
-      <section class="hv-hero" aria-label="Hydrovest Smart Hydroponics">
-        <div class="hv-hero-grid">
-          <div class="hv-hero-copy">
-            <div class="hv-kicker">
-              <span>Hydrovest Smart Hydroponics</span>
-              <span class="sep" aria-hidden="true">·</span>
-              <span>Powered by Hydrobot.Ai</span>
-            </div>
-            <h1 class="hv-hero-title">Clean water, sunlit greenhouses, <span class="hv-grad">intelligent harvests.</span></h1>
-            <p class="hv-hero-desc">Hydrovest cultivates crisp leafy greens, aromatic herbs, and vine crops year-round using closed-loop hydroponics, precision climate control, and one unified farm operating system.</p>
-            <div class="hv-cta-row">
-              <button type="button" class="hv-btn hv-btn-primary" data-act="auth-nav" data-view="signup">Create account</button>
-              <button type="button" class="hv-btn hv-btn-secondary" data-act="auth-nav" data-view="signin">Sign in to farm</button>
-            </div>
-            <div class="hv-hero-meta">
-              <span>Closed-loop NFT &amp; DWC</span>
-              <span aria-hidden="true">·</span>
-              <span>Vertical Aeroponic Towers</span>
-              <span aria-hidden="true">·</span>
-              <span>3D Digital Twin &amp; Crop Telemetry</span>
+function renderWelcome() {
+  return `
+    <div class="hb-welcome">
+      <div class="hb-bg" aria-hidden="true">
+        <img src="/assets/images/hero_hydrovest_farm_1794817767084.jpg" alt="" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
+        <div class="hb-scrim"></div>
+      </div>
+
+      <div class="hb-shell">
+        <header class="hb-topbar" aria-label="Hydrobot AI navigation">
+          ${hydrobotLogoHtml()}
+          <button type="button" class="hb-signin-link" data-act="auth-nav" data-view="signin">Sign in</button>
+        </header>
+
+        <section class="hb-hero" aria-labelledby="hb-hero-title">
+          <div class="hb-hero-content">
+            <p class="hb-eyebrow">Smart Greenhouse Intelligence</p>
+            <h1 class="hb-hero-title" id="hb-hero-title">Intelligent Hydroponic Farming.</h1>
+            <p class="hb-hero-desc">Real-time climate telemetry, crop lifecycle tracking, and AI-guided yield intelligence in one quiet workspace.</p>
+            <div class="hb-cta-wrap">
+              <button type="button" class="hb-start-btn" data-act="auth-nav" data-view="signin">
+                <span>Get Started</span>
+                ${ic('chev')}
+              </button>
             </div>
           </div>
+        </section>
 
-          <div class="hv-hero-visual">
-            <div class="hv-media-frame">
-              <img src="/assets/images/hero_hydrovest_farm_1794817767084.jpg" alt="Sunlit Hydrovest commercial hydroponic greenhouse growing butterhead lettuce and cherry tomatoes in clean white channels" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-              ${fallbackMarkup('house', 'Hydrovest Commercial Glasshouse')}
-              <div class="hv-hero-scrim">
-                <div class="hv-hero-caption">
-                  <b>Controlled Environment Glasshouse</b>
-                  <span>Recirculating mineral nutrition &amp; active climate balance</span>
-                </div>
-              </div>
-            </div>
-            <figure class="hv-companion-row">
-              <div class="hv-companion-thumb">
-                <img src="/assets/images/hydrovest_water_system_1794817767631.jpg" alt="Oxygenated nutrient solution circulating through clean hydroponic feed channels" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-                ${fallbackMarkup('drop', 'Feed Loop')}
-              </div>
-              <figcaption class="hv-companion-copy">
-                <b>Precision Oxygenated Feed Loop</b>
-                <span>Filtered mineral water continuously returns from every bay for balanced pH and EC.</span>
-              </figcaption>
-            </figure>
-          </div>
-        </div>
-      </section>
+        <footer class="hb-foot">
+          <p class="hb-foot-cap">Climate Telemetry · 3D Live Garden · AI Crop Diagnostics</p>
+          <p class="hb-foot-brand">Hydrobot AI</p>
+        </footer>
+      </div>
+    </div>
+  `;
+}
 
-      <section class="hv-crop-strip reveal-on-scroll" aria-label="Primary hydroponic crops">
-        <article class="hv-crop-tile">
-          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-emerald),#34d399)"></div>
-          <h3>Butterhead Lettuce</h3>
-          <p>Crisp, soil-free heads grown across NFT channel benches and indoor multi-tier LED racks.</p>
-          <div class="hv-crop-spec">pH 5.6–6.2 · 42-day cycle</div>
-        </article>
-        <article class="hv-crop-tile">
-          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-coral),#f97316)"></div>
-          <h3>Cherry Tomato</h3>
-          <p>High-brix vine clusters cultivated in Dutch bucket drip loops with balanced fruiting EC.</p>
-          <div class="hv-crop-spec">pH 5.8–6.5 · Continuous harvest</div>
-        </article>
-        <article class="hv-crop-tile">
-          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-lime),#eab308)"></div>
-          <h3>Genovese Basil</h3>
-          <p>Fragrant culinary stems thriving in deep water culture troughs with dissolved oxygen control.</p>
-          <div class="hv-crop-spec">pH 5.5–6.5 · 32-day cycle</div>
-        </article>
-        <article class="hv-crop-tile">
-          <div class="hv-crop-swatch" style="background:linear-gradient(90deg,var(--hv-berry),var(--hv-aqua))"></div>
-          <h3>Albion Strawberry</h3>
-          <p>Sweet day-neutral berries trained along vertical towers for compact, clean canopy airflow.</p>
-          <div class="hv-crop-spec">pH 5.5–6.2 · Vertical towers</div>
-        </article>
-      </section>
-
-      <section class="hv-section reveal-on-scroll" id="hv-systems" aria-labelledby="hv-systems-title">
-        <div class="hv-section-head">
-          <div>
-            <span class="hv-section-kicker" style="color:var(--hv-aqua)">01 · Cultivation Architecture</span>
-            <h2 id="hv-systems-title">Built around real hydroponic growing systems</h2>
-          </div>
-          <p>From indoor LED racks to sunlit NFT aisles and vertical towers, every bay at Hydrovest is engineered for clean roots, rapid turnover, and consistent quality.</p>
-        </div>
-        <div class="hv-bento">
-          <article class="hv-bento-card wide">
-            <div class="hv-bento-media">
-              <img src="/assets/aistudio/hydrovest_tech_970fe4be.jpg" alt="Hydrovest grower inspecting vibrant green butterhead lettuce in an indoor shelved LED grow rack" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-              ${fallbackMarkup('sprout', 'Indoor Multi-Tier LED Grow Racks')}
-            </div>
-            <div class="hv-bento-body">
-              <div class="hv-bento-meta" style="color:var(--hv-gold)">
-                <span>Indoor Shelved Racks</span>
-                <span aria-hidden="true">·</span>
-                <span>Full-Spectrum LED</span>
-              </div>
-              <h3>Multi-tier indoor racks for steady leaf quality</h3>
-              <p>Stacked growing beds under calibrated linear LEDs deliver uniform light distribution and predictable harvest schedules regardless of outdoor weather.</p>
-            </div>
-          </article>
-
-          <article class="hv-bento-card">
-            <div class="hv-bento-media">
-              <img src="/assets/aistudio/hydrovest_tech_2_9604557f.jpg" alt="Sunlit Hydrovest greenhouse aisle flanked by twin NFT hydroponic lettuce benches" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-              ${fallbackMarkup('drop', 'Nutrient Film Technique Benches')}
-            </div>
-            <div class="hv-bento-body">
-              <div class="hv-bento-meta" style="color:var(--hv-emerald)">
-                <span>NFT Channels</span>
-                <span aria-hidden="true">·</span>
-                <span>Natural Daylight</span>
-              </div>
-              <h3>Shallow nutrient film benches</h3>
-              <p>Continuous thin-film nutrient flow across sloped white channels keeps roots oxygenated and foliage clean off the floor.</p>
-            </div>
-          </article>
-
-          <article class="hv-bento-card">
-            <div class="hv-bento-media">
-              <img src="/assets/aistudio/hydrovest_tech_1_40b62192.jpg" alt="Rows of white 8-tier vertical hydroponic growing towers filled with lush leafy crops" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-              ${fallbackMarkup('house', 'Vertical Growing Towers')}
-            </div>
-            <div class="hv-bento-body">
-              <div class="hv-bento-meta" style="color:var(--hv-aqua)">
-                <span>Vertical Towers</span>
-                <span aria-hidden="true">·</span>
-                <span>High Density</span>
-              </div>
-              <h3>Vertical towers for tight footprints</h3>
-              <p>Eight-tier modular columns multiply vertical growing density while gravity-fed return manifolds recirculate every drop back to the reservoir.</p>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="hv-split-showcase reveal-on-scroll" id="hv-produce" aria-labelledby="hv-produce-title">
-        <div class="hv-photo-duo">
-          <div class="hv-photo-tile">
-            <img src="/assets/images/hydrovest_produce_harvest_1794817767415.jpg" alt="Freshly harvested Hydrovest butterhead lettuce, vine cherry tomatoes, Genovese basil, and ripe strawberries" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-            ${fallbackMarkup('basket', 'Fresh Hydrovest Harvest')}
-            <div class="hv-photo-cap">Harvested crisp, clean &amp; soil-free</div>
-          </div>
-          <div class="hv-photo-tile">
-            <img src="/assets/images/hydrovest_water_system_1794817767631.jpg" alt="Close-up of clear oxygenated hydroponic water feeding basil and lettuce roots" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('is-broken')">
-            ${fallbackMarkup('drop', 'Closed-Loop Water Nutrition')}
-            <div class="hv-photo-cap">Closed-loop oxygenated water &amp; mineral feed</div>
-          </div>
-        </div>
-
-        <div class="hv-split-copy">
-          <div>
-            <span class="hv-section-kicker" style="color:var(--hv-coral)">02 · Pure Water &amp; Fresh Produce</span>
-            <h2 id="hv-produce-title">Vibrant flavour rooted in balanced mineral water</h2>
-          </div>
-          <p>By recirculating filtered nutrient solutions instead of saturating open fields, Hydrovest pairs dramatically cleaner water stewardship with crisp leaves, sweet fruit, and zero soil grit.</p>
-          <div class="hv-spec-list">
-            <div class="hv-spec-item">
-              <b>Closed-Loop Recirculation</b>
-              <span>Return lines capture and re-balance unused water and minerals every cycle.</span>
-            </div>
-            <div class="hv-spec-item">
-              <b>Targeted pH &amp; EC Windows</b>
-              <span>Every crop batch tracks its own calibrated nutrient and acidity range.</span>
-            </div>
-            <div class="hv-spec-item">
-              <b>Foliar &amp; Root Hygiene</b>
-              <span>Elevated beds, weed-mat aisles, and controlled airflow protect crop health.</span>
-            </div>
-            <div class="hv-spec-item">
-              <b>Direct Harvest Traceability</b>
-              <span>Batches connect planting dates, inspections, grading, and customer delivery.</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="hv-section reveal-on-scroll" id="hv-platform" aria-labelledby="hv-platform-title">
-        <div class="hv-section-head">
-          <div>
-            <span class="hv-section-kicker" style="color:var(--hv-emerald)">03 · Farm Operations Workspace</span>
-            <h2 id="hv-platform-title">Everything your team runs after signing in</h2>
-          </div>
-          <p>Sign in to access Hydrobot.Ai—the unified workspace for greenhouse telemetry, our interactive 3D Live Garden twin, daily farm tasks, and harvest logistics.</p>
-        </div>
-        <div class="hv-ops-grid">
-          <article class="hv-ops-card">
-            <span class="hv-ops-num" style="color:var(--hv-aqua)">01 · Digital Twin</span>
-            <h3>Interactive 3D Live Garden</h3>
-            <p>Inspect shelved racks, NFT channels, vertical towers, the main nutrient tank, and pump flow state inside a real-time isometric 3D scene.</p>
-          </article>
-          <article class="hv-ops-card">
-            <span class="hv-ops-num" style="color:var(--hv-emerald)">02 · Telemetry &amp; Alerts</span>
-            <h3>Climate, pH, EC &amp; Reservoir Guardrails</h3>
-            <p>Monitor air temperature, humidity, CO₂, water temperature, and tank levels with immediate threshold alerts when a zone drifts.</p>
-          </article>
-          <article class="hv-ops-card">
-            <span class="hv-ops-num" style="color:var(--hv-gold)">03 · Crop &amp; Crew Execution</span>
-            <h3>Batches, Tasks &amp; Smart Inventory</h3>
-            <p>Track germination through harvest readiness, assign daily farm tasks by role, and catch low seed or nutrient stock before reorder points hit.</p>
-          </article>
-          <article class="hv-ops-card">
-            <span class="hv-ops-num" style="color:var(--hv-coral)">04 · Harvest to Table</span>
-            <h3>Yield Analytics, Orders &amp; Farm Assistant</h3>
-            <p>Record Grade A/B/C yields, manage refrigerated van deliveries, and query farm records directly with the built-in agricultural assistant.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="hv-cta-band reveal-on-scroll" id="hv-access" aria-labelledby="hv-cta-title">
-        <div>
-          <h2 id="hv-cta-title">Step inside your Hydrovest greenhouse workspace</h2>
-          <p>Create a grower account to configure your farm, or sign in with your existing credentials to open live operations and the 3D Live Garden.</p>
-        </div>
-        <div class="hv-cta-actions">
-          <button type="button" class="hv-btn hv-btn-light" data-act="auth-nav" data-view="signup">Create account</button>
-          <button type="button" class="hv-btn hv-btn-ghost-dark" data-act="auth-nav" data-view="signin">Sign in</button>
-        </div>
-      </section>
-
-      <footer class="hv-footer">
-        <div class="hv-logo-lockup">
-          ${brandSvg}
-          <span class="hv-wordmark" style="font-size:1.05rem">Hydro<span>vest</span></span>
-        </div>
-        <div class="hv-footer-links">
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-systems">Growing Systems</button>
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-produce">Water &amp; Crops</button>
-          <button type="button" class="hv-nav-link" data-hv-scroll="hv-platform">Smart Operations</button>
-          <button type="button" class="hv-nav-link" data-act="auth-nav" data-view="signin">Sign in</button>
-        </div>
-        <span>Hydrovest · Hydrobot.Ai Smart Farming</span>
-      </footer>
+function renderAuthTabs(active) {
+  return `
+    <div class="hb-auth-tabs" role="tablist" aria-label="Authentication mode">
+      <button type="button" role="tab" aria-selected="${active === 'signin' ? 'true' : 'false'}" class="hb-auth-tab ${active === 'signin' ? 'is-active' : ''}" data-act="auth-nav" data-view="signin">Sign in</button>
+      <button type="button" role="tab" aria-selected="${active === 'signup' ? 'true' : 'false'}" class="hb-auth-tab ${active === 'signup' ? 'is-active' : ''}" data-act="auth-nav" data-view="signup">Create account</button>
     </div>
   `;
 }
@@ -1042,9 +871,12 @@ function renderWelcome() {
 function renderSignIn() {
   return `
     <div class="auth-wrapper reveal-on-scroll">
+      <div class="hb-auth-header">${hydrobotLogoHtml()}</div>
       <div class="auth-card">
+        ${renderAuthTabs('signin')}
         <h2>Welcome back</h2>
         <p>Sign in to access your farm operations and telemetry dashboard.</p>
+        ${AuthState.isDemoAuth ? `<div class="notice warn" style="margin-bottom:16px">${ic('info')}<div><b>Local preview mode:</b> Supabase is not configured in this environment.</div></div>` : ''}
         ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
         ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
         <form id="signInForm">
@@ -1076,9 +908,12 @@ function renderSignIn() {
 function renderSignUp() {
   return `
     <div class="auth-wrapper reveal-on-scroll">
+      <div class="hb-auth-header">${hydrobotLogoHtml()}</div>
       <div class="auth-card">
+        ${renderAuthTabs('signup')}
         <h2>Create an account</h2>
-        <p>Set up your credentials to manage your hydroponic farm.</p>
+        <p>Authorized team members can register with an approved email address.</p>
+        ${AuthState.isDemoAuth ? `<div class="alert-box">${ic('alert')}<div>Registration requires an active Supabase configuration. Public sign-up is disabled in local preview mode.</div></div>` : ''}
         ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
         ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
         <form id="signUpForm">
@@ -1104,7 +939,7 @@ function renderSignUp() {
             <label for="suPwdConfirm">Confirm password</label>
             <input type="password" id="suPwdConfirm" class="form-control" required placeholder="••••••••" autocomplete="new-password">
           </div>
-          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Creating account…' : 'Create account'}</button>
+          <button type="submit" class="btn-primary" ${AuthState.loading || AuthState.isDemoAuth ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Creating account…' : 'Create account'}</button>
         </form>
         <div class="auth-links">
           Already have an account? <a href="#" data-act="auth-nav" data-view="signin">Sign in</a> · <a href="#" data-act="auth-nav" data-view="welcome">Home</a>
@@ -1117,6 +952,7 @@ function renderSignUp() {
 function renderForgot() {
   return `
     <div class="auth-wrapper reveal-on-scroll">
+      <div class="hb-auth-header">${hydrobotLogoHtml()}</div>
       <div class="auth-card">
         <h2>Reset password</h2>
         <p>Enter your email and we'll send you a password recovery link.</p>
@@ -1141,23 +977,31 @@ function renderVerifyEmail() {
   const st = AuthState.verifyStatus || 'loading';
   return `
     <div class="auth-wrapper reveal-on-scroll">
+      <div class="hb-auth-header">${hydrobotLogoHtml()}</div>
       <div class="auth-card" style="text-align:center">
         ${st === 'loading' ? `
-          <div style="font-size:2.5rem;margin-bottom:12px"><span class="spinner" style="width:40px;height:40px;border-width:4px"></span></div>
+          <div style="margin-bottom:14px"><span class="spinner" style="width:36px;height:36px;border-width:3px;color:var(--accent)"></span></div>
           <h2>Verifying your email...</h2>
-          <p class="muted">Please wait while we confirm your account session.</p>
+          <p>Please wait while we confirm your account session.</p>
         ` : st === 'success' ? `
-          <div style="font-size:3.2rem;margin-bottom:12px;color:var(--ok)">✓</div>
-          <h2>Email verified successfully!</h2>
-          <p class="muted">Your account is confirmed. Redirecting you to your farm workspace...</p>
+          <div class="hb-verify-badge is-ok" aria-hidden="true">${ic('check')}</div>
+          <h2>Email verified successfully</h2>
+          <p>Your account is confirmed. Redirecting you to your farm workspace...</p>
         ` : `
-          <div style="font-size:3.2rem;margin-bottom:12px;color:var(--crit)">⚠️</div>
-          <h2>Verification failed</h2>
+          <div class="hb-verify-badge is-err" aria-hidden="true">${ic('alert')}</div>
+          <h2>Verification link expired or invalid</h2>
           <div class="alert-box" style="text-align:left;margin-top:12px">${ic('alert')}<div>${esc(AuthState.error || 'The confirmation link has expired or is invalid.')}</div></div>
-          <p class="muted" style="margin:16px 0">Links may expire or can only be used once. You can request a new confirmation email or sign in if already verified.</p>
-          <div class="toolbar" style="justify-content:center;gap:10px;margin-top:20px">
-            <button type="button" class="btn-primary" data-act="auth-nav" data-view="signup" style="width:auto;padding:10px 20px">Create new account</button>
-            <button type="button" class="btn" data-act="auth-nav" data-view="signin" style="width:auto;padding:10px 20px">Sign in</button>
+          ${AuthState.successMsg ? `<div class="success-box" style="text-align:left">${esc(AuthState.successMsg)}</div>` : ''}
+          <p style="margin:12px 0 18px">Confirmation links expire after a short window or single use. Enter your registered email to request a new link.</p>
+          <form id="resendVerifyForm" style="text-align:left">
+            <div class="form-group">
+              <label for="rvEmail">Registered email address</label>
+              <input type="email" id="rvEmail" class="form-control" required placeholder="farmer@example.com" autocomplete="email">
+            </div>
+            <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Sending confirmation…' : 'Resend confirmation email'}</button>
+          </form>
+          <div class="auth-links">
+            <a href="#" data-act="auth-nav" data-view="signin">Back to Sign in</a> · <a href="#" data-act="auth-nav" data-view="welcome">Home</a>
           </div>
         `}
       </div>
@@ -1168,6 +1012,7 @@ function renderVerifyEmail() {
 function renderCreateFarmScreen() {
   return `
     <div class="auth-wrapper reveal-on-scroll">
+      <div class="hb-auth-header">${hydrobotLogoHtml()}</div>
       <div class="auth-card">
         <h2>Create your farm</h2>
         <p>Set up your greenhouse farm entity to begin managing crops and telemetry.</p>
@@ -1278,14 +1123,18 @@ function renderTop() {
 
 function render() {
   const view = $('#view');
-  const isSignedOut = !AuthState.session || AuthState.authView === 'reset';
+  const isSignedOut = !AuthState.session || AuthState.authView === 'reset' || AuthState.authView === 'verify';
+  const isLandingWelcome = !AuthState.session && AuthState.authView === 'welcome';
+
+  document.body.classList.toggle('hb-landing-mode', isLandingWelcome);
+  view.classList.toggle('is-landing', isLandingWelcome);
 
   if (isSignedOut) {
     window.LiveGardenUI?.dispose();
     if ($('#sidebar')) $('#sidebar').style.display = 'none';
     if ($('.topbar')) $('.topbar').style.display = 'none';
     if ($('.main')) $('.main').style.marginLeft = '0';
-    view.style.marginInline = 'auto';
+    view.style.marginInline = isLandingWelcome ? '' : 'auto';
     view.innerHTML = renderAuthScreen();
     initScrollAnimations();
     return;
@@ -2787,30 +2636,32 @@ document.addEventListener('submit', async e => {
   const f = e.target;
   if (f.id === 'signInForm') {
     AuthState.error = '';
+    AuthState.successMsg = '';
     AuthState.loading = true;
     render();
     const email = $('#siEmail').value.trim();
     const password = $('#siPwd').value;
     try {
       let signedIn = false;
-      if (sbClient) {
+      if (sbClient && !AuthState.isDemoAuth) {
         const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
-        if (!error && data?.session) {
-          AuthState.session = data.session;
-          AuthState.user = data.user;
-          await loadUserFarms();
-          signedIn = true;
-        } else if (AuthState.isDemoAuth || (error && (error.message?.includes('Invalid login') || error.message?.includes('Email not confirmed') || error.message?.includes('Invalid credentials')))) {
-          // If Supabase is unconfigured or account not found in Supabase yet, allow entering as demo owner
-          AuthState.session = { access_token: 'demo-token' };
-          AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
-          AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', role: 'owner' }];
-          AuthState.role = 'owner';
-          ui.role = 'Farm Owner';
-          signedIn = true;
-        } else {
+        if (error) {
+          const msg = String(error.message || '');
+          if (/email not confirmed/i.test(msg)) {
+            throw new Error('Your email is not verified yet. Please check your inbox and click the confirmation link before signing in.');
+          }
+          if (/invalid login credentials/i.test(msg)) {
+            throw new Error('Invalid email or password.');
+          }
           throw error;
         }
+        if (!data?.session || !data?.user) {
+          throw new Error('Sign-in failed to establish a valid session.');
+        }
+        AuthState.session = data.session;
+        AuthState.user = data.user;
+        await loadUserFarms();
+        signedIn = true;
       } else {
         AuthState.session = { access_token: 'demo-token' };
         AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
@@ -2821,7 +2672,7 @@ document.addEventListener('submit', async e => {
       }
       if (signedIn) toast('Signed in successfully.');
     } catch (er) {
-      AuthState.error = er.message || 'Invalid email or password.';
+      AuthState.error = er?.message || 'Invalid email or password.';
     }
     AuthState.loading = false;
     render();
@@ -2831,7 +2682,7 @@ document.addEventListener('submit', async e => {
     AuthState.error = '';
     AuthState.successMsg = '';
     const name = $('#suName').value.trim();
-    const email = $('#suEmail').value.trim();
+    const email = $('#suEmail').value.trim().toLowerCase();
     const password = $('#suPwd').value;
     const confirm = $('#suPwdConfirm').value;
     if (password !== confirm) {
@@ -2847,30 +2698,96 @@ document.addEventListener('submit', async e => {
     AuthState.loading = true;
     render();
     try {
-      if (sbClient && !AuthState.isDemoAuth) {
-        const { data, error } = await sbClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: name },
-            emailRedirectTo: window.location.origin
-          }
+      if (!sbClient || AuthState.isDemoAuth) {
+        throw new Error('Registration is unavailable because Supabase authentication is not configured in this environment.');
+      }
+
+      // Server-side pre-check: verifies allowlist (if configured) and Supabase signup policy
+      let preCheckRes = null;
+      try {
+        preCheckRes = await fetch('/api/auth/signup-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
         });
-        if (error) throw error;
-        if (data && data.session) {
-          AuthState.session = data.session;
-          AuthState.user = data.user;
-          await loadUserFarms();
-          toast('Account created successfully.');
-        } else {
-          AuthState.successMsg = 'Check your email to confirm your account before signing in.';
+      } catch (_) {
+        preCheckRes = null;
+      }
+
+      if (preCheckRes && preCheckRes.status !== 404 && preCheckRes.status !== 405) {
+        const preCheckData = await preCheckRes.json().catch(() => null);
+        if (!preCheckRes.ok || preCheckData?.allowed === false) {
+          throw new Error(preCheckData?.error || 'Registration is restricted for this email address.');
         }
+      }
+
+      const { data, error } = await sbClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name },
+          emailRedirectTo: window.location.origin
+        }
+      });
+
+      if (error) {
+        const raw = String(error.message || '');
+        if (/signups not allowed|signup_disabled/i.test(raw)) {
+          throw new Error('Public registration is disabled in Supabase. Only invited or pre-approved accounts can sign in.');
+        }
+        if (/database error saving new user/i.test(raw)) {
+          throw new Error('Access restricted: Registration was rejected by the database policy (this email address may not be authorized).');
+        }
+        if (/user already registered|already exists/i.test(raw)) {
+          throw new Error('An account with this email already exists. Please sign in instead.');
+        }
+        throw error;
+      }
+
+      if (!data || !data.user || !data.user.id) {
+        throw new Error('Account could not be created. Registration may be restricted.');
+      }
+
+      // Supabase returns identities: [] without an error when confirmation obfuscation suppresses signup
+      if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        throw new Error('Account could not be registered. This email may already exist or require administrator approval.');
+      }
+
+      if (data.session) {
+        AuthState.session = data.session;
+        AuthState.user = data.user;
+        await loadUserFarms();
+        toast('Account created successfully.');
       } else {
         AuthState.successMsg = 'Check your email to confirm your account before signing in.';
       }
     } catch (er) {
       AuthState.error = er?.message || 'Could not create account.';
       AuthState.successMsg = '';
+    }
+    AuthState.loading = false;
+    render();
+    return;
+  }
+  if (f.id === 'resendVerifyForm') {
+    AuthState.error = '';
+    AuthState.successMsg = '';
+    const email = $('#rvEmail').value.trim().toLowerCase();
+    AuthState.loading = true;
+    render();
+    try {
+      if (!sbClient || AuthState.isDemoAuth) {
+        throw new Error('Email verification requires an active Supabase configuration.');
+      }
+      const { error } = await sbClient.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: window.location.origin }
+      });
+      if (error) throw error;
+      AuthState.successMsg = 'A new confirmation email has been sent if your account is pending verification.';
+    } catch (er) {
+      AuthState.error = er?.message || 'Could not resend confirmation email.';
     }
     AuthState.loading = false;
     render();
