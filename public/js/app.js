@@ -602,14 +602,58 @@ function activeFarmName() {
 
 async function initAuth() {
   if (sbClient) {
-    const hashStr = location.hash || '';
-    const isRecoveryHash = hashStr.includes('type=recovery');
+    const fullUrl = window.location.href;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const errorDescription = urlParams.get('error_description') || hashParams.get('error_description') || urlParams.get('error') || hashParams.get('error');
+    const errorCode = urlParams.get('error_code') || hashParams.get('error_code');
+    const isRecoveryHash = window.location.hash.includes('type=recovery');
+    const hasCode = urlParams.has('code') || hashParams.has('code');
+    const hasTokenHash = urlParams.has('token_hash') || hashParams.has('token_hash') || window.location.hash.includes('access_token=');
+
+    if (errorDescription || errorCode) {
+      AuthState.authView = 'verify';
+      AuthState.verifyStatus = 'error';
+      AuthState.error = decodeURIComponent((errorDescription || 'The confirmation link has expired or is invalid.').replace(/\+/g, ' '));
+    } else if (hasCode) {
+      AuthState.authView = 'verify';
+      AuthState.verifyStatus = 'loading';
+      try {
+        const { data, error } = await sbClient.auth.exchangeCodeForSession(fullUrl);
+        if (error) throw error;
+        if (data?.session) {
+          AuthState.session = data.session;
+          AuthState.user = data.user;
+          await loadUserFarms();
+          AuthState.verifyStatus = 'success';
+          setTimeout(() => {
+            AuthState.authView = 'welcome';
+            render();
+          }, 1800);
+        }
+      } catch (er) {
+        AuthState.verifyStatus = 'error';
+        AuthState.error = er?.message || 'Verification failed or link expired.';
+      }
+    } else if (hasTokenHash && !isRecoveryHash) {
+      AuthState.authView = 'verify';
+      AuthState.verifyStatus = 'success';
+      setTimeout(() => {
+        AuthState.authView = 'welcome';
+        render();
+      }, 1500);
+    }
+
     const { data: { session } } = await sbClient.auth.getSession();
-    AuthState.session = session;
-    AuthState.user = session?.user || null;
+    if (session && !AuthState.session) {
+      AuthState.session = session;
+      AuthState.user = session?.user || null;
+    }
     if (isRecoveryHash) AuthState.authView = 'reset';
-    if (session && AuthState.authView !== 'reset') await loadUserFarms();
-    if (hashStr.includes('access_token=') || hashStr.includes('refresh_token=')) {
+    if (AuthState.session && AuthState.authView !== 'reset' && AuthState.authView !== 'verify') {
+      await loadUserFarms();
+    }
+    if (fullUrl.includes('code=') || fullUrl.includes('access_token=') || fullUrl.includes('refresh_token=')) {
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
     }
 
@@ -621,7 +665,7 @@ async function initAuth() {
         AuthState.user = nextSession?.user || null;
         if (event === 'PASSWORD_RECOVERY') {
           AuthState.authView = 'reset';
-        } else if (AuthState.authView !== 'reset') {
+        } else if (AuthState.authView !== 'reset' && AuthState.authView !== 'verify') {
           await loadUserFarms();
         }
       }
@@ -733,6 +777,7 @@ function renderAuthScreen() {
   if (AuthState.authView === 'signup') return renderSignUp();
   if (AuthState.authView === 'forgot') return renderForgot();
   if (AuthState.authView === 'reset') return renderReset();
+  if (AuthState.authView === 'verify') return renderVerifyEmail();
   return renderWelcome();
 }
 
@@ -1092,24 +1137,29 @@ function renderForgot() {
   `;
 }
 
-function renderReset() {
+function renderVerifyEmail() {
+  const st = AuthState.verifyStatus || 'loading';
   return `
     <div class="auth-wrapper reveal-on-scroll">
-      <div class="auth-card">
-        <h2>Set new password</h2>
-        <p>Enter your new secure password below.</p>
-        ${AuthState.error ? `<div class="alert-box">${ic('alert')}<div>${esc(AuthState.error)}</div></div>` : ''}
-        ${AuthState.successMsg ? `<div class="success-box">${esc(AuthState.successMsg)}</div>` : ''}
-        <form id="resetForm">
-          <div class="form-group">
-            <label for="rsPwd">New password</label>
-            <div class="pwd-wrap">
-              <input type="password" id="rsPwd" class="form-control" required placeholder="••••••••" autocomplete="new-password">
-              <button type="button" class="pwd-toggle" data-act="toggle-pwd" data-target="rsPwd">Show</button>
-            </div>
+      <div class="auth-card" style="text-align:center">
+        ${st === 'loading' ? `
+          <div style="font-size:2.5rem;margin-bottom:12px"><span class="spinner" style="width:40px;height:40px;border-width:4px"></span></div>
+          <h2>Verifying your email...</h2>
+          <p class="muted">Please wait while we confirm your account session.</p>
+        ` : st === 'success' ? `
+          <div style="font-size:3.2rem;margin-bottom:12px;color:var(--ok)">✓</div>
+          <h2>Email verified successfully!</h2>
+          <p class="muted">Your account is confirmed. Redirecting you to your farm workspace...</p>
+        ` : `
+          <div style="font-size:3.2rem;margin-bottom:12px;color:var(--crit)">⚠️</div>
+          <h2>Verification failed</h2>
+          <div class="alert-box" style="text-align:left;margin-top:12px">${ic('alert')}<div>${esc(AuthState.error || 'The confirmation link has expired or is invalid.')}</div></div>
+          <p class="muted" style="margin:16px 0">Links may expire or can only be used once. You can request a new confirmation email or sign in if already verified.</p>
+          <div class="toolbar" style="justify-content:center;gap:10px;margin-top:20px">
+            <button type="button" class="btn-primary" data-act="auth-nav" data-view="signup" style="width:auto;padding:10px 20px">Create new account</button>
+            <button type="button" class="btn" data-act="auth-nav" data-view="signin" style="width:auto;padding:10px 20px">Sign in</button>
           </div>
-          <button type="submit" class="btn-primary" ${AuthState.loading ? 'disabled' : ''}>${AuthState.loading ? '<span class="spinner"></span> Updating…' : 'Update password'}</button>
-        </form>
+        `}
       </div>
     </div>
   `;
@@ -2797,7 +2847,7 @@ document.addEventListener('submit', async e => {
     AuthState.loading = true;
     render();
     try {
-      if (sbClient) {
+      if (sbClient && !AuthState.isDemoAuth) {
         const { data, error } = await sbClient.auth.signUp({
           email,
           password,
@@ -2807,7 +2857,7 @@ document.addEventListener('submit', async e => {
           }
         });
         if (error) throw error;
-        if (data.session) {
+        if (data && data.session) {
           AuthState.session = data.session;
           AuthState.user = data.user;
           await loadUserFarms();
@@ -2819,7 +2869,8 @@ document.addEventListener('submit', async e => {
         AuthState.successMsg = 'Check your email to confirm your account before signing in.';
       }
     } catch (er) {
-      AuthState.error = er.message || 'Could not create account.';
+      AuthState.error = er?.message || 'Could not create account.';
+      AuthState.successMsg = '';
     }
     AuthState.loading = false;
     render();
