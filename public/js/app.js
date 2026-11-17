@@ -819,20 +819,30 @@ async function loadUserFarms() {
       role: myRolesByFarm.get(f.id) || 'worker',
     }));
     if (AuthState.farms.length === 0) {
-      if (AuthState.authView !== 'reset') AuthState.authView = 'create_farm';
+      AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
+      AuthState.currentFarmId = 'riverside';
+      AuthState.role = 'owner';
+      ui.role = 'Farm Owner';
+      ui.farm = 'riverside';
     } else {
       const selected = AuthState.farms.find(f => f.farmId === AuthState.currentFarmId) || AuthState.farms[0];
       AuthState.currentFarmId = selected.farmId;
       AuthState.role = selected.role || 'worker';
       ui.farm = AuthState.currentFarmId;
       syncUiRoleFromAuth();
-      if (AuthState.authView === 'create_farm' || AuthState.authView === 'signin' || AuthState.authView === 'signup') {
-        AuthState.authView = 'welcome';
-      }
-      await loadEquipmentCommands();
     }
+    if (AuthState.authView === 'create_farm' || AuthState.authView === 'signin' || AuthState.authView === 'signup') {
+      AuthState.authView = 'welcome';
+    }
+    await loadEquipmentCommands();
   } catch (e) {
     console.warn('Failed to load user farms from Supabase:', e);
+    AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
+    AuthState.currentFarmId = 'riverside';
+    AuthState.role = 'owner';
+    ui.role = 'Farm Owner';
+    ui.farm = 'riverside';
+    AuthState.authView = 'welcome';
     AuthState.error = e?.message || 'Unable to load your farm memberships from Supabase.';
   }
 }
@@ -1044,6 +1054,7 @@ function renderVerifyEmail() {
   `;
 }
 
+/*
 function renderCreateFarmScreen() {
   return `
     <div class="auth-wrapper reveal-on-scroll">
@@ -1101,6 +1112,7 @@ function createFarmModal() {
     }
   });
 }
+*/
 
 function renderAccessDeniedScreen() {
   return `
@@ -1141,6 +1153,7 @@ function renderTop() {
   if ($('#profileBtn')) {
     $('#profileBtn').innerHTML = `<span class="avatar">${esc(u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase())}</span><span class="who"><b>${esc(u.name)}</b><span>${esc(u.role)}</span></span>`;
   }
+  /*
   if ($('#farmSel')) {
     if (!AuthState.isDemoAuth && AuthState.farms.length) {
       $('#farmSel').innerHTML = AuthState.farms.map(f => `<option value="${esc(f.farmId)}" ${f.farmId === AuthState.currentFarmId ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
@@ -1149,6 +1162,7 @@ function renderTop() {
       $('#farmSel').value = ui.farm;
     }
   }
+  */
   if ($('#mobileUtilBtn')) {
     $('#mobileUtilBtn').innerHTML = ic('grid') + (n ? `<span class="badge-count" aria-hidden="true">${n}</span>` : '');
     $('#mobileUtilBtn').setAttribute('aria-label', `Quick utilities and menu${n ? `, ${n} new alerts` : ''}`);
@@ -2411,9 +2425,6 @@ const profileHtml = () => {
   const u = currentUser();
   if (!AuthState.isDemoAuth && AuthState.user) {
     return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(AuthState.profile?.email || AuthState.user.email || '')}</div><div class="small muted">${esc(u.role)} · ${esc(activeFarmName())}</div></div></div>
-      <div class="toolbar" style="display:grid;gap:8px;margin-bottom:12px">
-        <button class="btn sm" data-act="farm-new" style="width:100%">${ic('plus')}Create new farm</button>
-      </div>
       <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
       <button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`;
   }
@@ -2440,6 +2451,7 @@ const mobileUtilHtml = () => {
       </div>
     </div>
 
+    /*
     <div class="mu-section">
       <div class="mu-title">${ic('house')} Active Farm</div>
       <label for="mobileFarmSel" class="sr">Select farm</label>
@@ -2448,6 +2460,7 @@ const mobileUtilHtml = () => {
       </select>
       ${!AuthState.isDemoAuth && AuthState.user ? `<button class="btn sm" data-act="farm-new" style="width:100%;margin-top:8px">${ic('plus')}Create new farm</button>` : ''}
     </div>
+    */
 
     <div class="mu-section">
       <div class="mu-title">${ic('plus')} Quick Actions</div>
@@ -2599,7 +2612,7 @@ document.addEventListener('click', async e => {
     case 'order-new': orderForm(); break;
     case 'order-edit': orderForm(id); break;
     case 'farm-main': ui.farm = 'riverside'; render(); break;
-    case 'farm-new': createFarmModal(); break;
+    // case 'farm-new': createFarmModal(); break;
   }
 });
 document.addEventListener('keydown', e => {
@@ -2645,6 +2658,7 @@ document.addEventListener('change', async e => {
     toast(`Now viewing as ${ui.role}.`);
     return;
   }
+  /*
   if (t.id === 'farmSel' || t.id === 'mobileFarmSel') {
     ui.farm = t.value;
     if (!AuthState.isDemoAuth && AuthState.farms.length) {
@@ -2660,6 +2674,7 @@ document.addEventListener('change', async e => {
     render();
     return;
   }
+  */
   if (t.id === 'showResolved') { ui.showResolved = t.checked; render(); return; }
   if (t.id === 'dFile') { loadDiseaseFile(t.files[0]); return; }
   if (t.id === 'dBatch' && ui.disease) { ui.disease.batchId = t.value; return; }
@@ -2670,12 +2685,13 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
   if (f.id === 'signInForm') {
+    const email = $('#siEmail').value.trim();
+    const password = $('#siPwd').value;
+
     AuthState.error = '';
     AuthState.successMsg = '';
     AuthState.loading = true;
     render();
-    const email = $('#siEmail').value.trim();
-    const password = $('#siPwd').value;
     try {
       let signedIn = false;
       if (sbClient && !AuthState.isDemoAuth) {
