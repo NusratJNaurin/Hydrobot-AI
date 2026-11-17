@@ -534,22 +534,63 @@ function initScrollAnimations() {
 }
 
 /* ================= Supabase Auth & Role Management ================= */
-const supabaseUrl = (window.SUPABASE_URL || '').trim();
-const supabaseAnonKey = (window.SUPABASE_ANON_KEY || '').trim();
-const isSupabaseConfigured = Boolean(
-  window.supabase &&
-  supabaseUrl &&
-  supabaseUrl !== 'https://your-project.supabase.co' &&
-  supabaseAnonKey &&
-  supabaseAnonKey !== 'your-anon-key'
-);
-const sbClient = isSupabaseConfigured ? window.supabase.createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
+let sbClient = null;
+let isSupabaseConfigured = false;
+let runtimeConfig = { allowedEmails: '', allowedDomains: '' };
+
+async function loadRuntimeConfigAndInitSupabase() {
+  try {
+    const res = await fetch('/api/config', { cache: 'no-store' });
+    if (res.ok) {
+      const cfg = await res.json();
+      const url = String(cfg?.supabaseUrl || '').trim();
+      const key = String(cfg?.supabaseAnonKey || '').trim();
+      runtimeConfig.allowedEmails = String(cfg?.allowedEmails || '').trim();
+      runtimeConfig.allowedDomains = String(cfg?.allowedDomains || '').trim();
+
+      if (
+        window.supabase &&
+        url &&
+        url !== 'https://your-project.supabase.co' &&
+        key &&
+        key !== 'your-anon-key'
+      ) {
+        sbClient = window.supabase.createClient(url, key, {
+          auth: {
+            autoRefreshToken: true,
+            persistSession: true,
+            detectSessionInUrl: true,
+          }
+        });
+        isSupabaseConfigured = true;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load runtime config from /api/config, falling back:', e);
   }
-}) : null;
+
+  if (!isSupabaseConfigured && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+    const url = String(window.SUPABASE_URL).trim();
+    const key = String(window.SUPABASE_ANON_KEY).trim();
+    if (url && url !== 'https://your-project.supabase.co' && key && key !== 'your-anon-key' && window.supabase) {
+      sbClient = window.supabase.createClient(url, key, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        }
+      });
+      isSupabaseConfigured = true;
+    }
+  }
+
+  AuthState.isDemoAuth = !isSupabaseConfigured;
+  if (AuthState.isDemoAuth) {
+    ui.role = 'Farm Owner';
+    AuthState.role = 'owner';
+    try { const r = localStorage.getItem('hydrobot.role'); if (r && ROLES[r]) ui.role = r; } catch (e) { }
+  }
+}
 
 const AuthState = {
   session: null,
@@ -564,14 +605,8 @@ const AuthState = {
   loading: false,
   error: '',
   successMsg: '',
-  isDemoAuth: !isSupabaseConfigured
+  isDemoAuth: true
 };
-
-if (AuthState.isDemoAuth) {
-  ui.role = 'Farm Owner';
-  AuthState.role = 'owner';
-  try { const r = localStorage.getItem('hydrobot.role'); if (r && ROLES[r]) ui.role = r; } catch (e) { }
-}
 
 function resetSensitiveStateOnSignOut(opts = {}) {
   const preserveAuthView = Boolean(opts && opts.preserveAuthView);
@@ -2943,6 +2978,7 @@ new MutationObserver(scheduleRender).observe(document.documentElement, { attribu
   buildDemo();
   initTheme();
   getKnowledgeBase();
+  await loadRuntimeConfigAndInitSupabase();
   await initAuth();
   ui.route = ROUTES[location.hash.replace('#', '')] ? location.hash.replace('#', '') : 'dashboard';
   render();

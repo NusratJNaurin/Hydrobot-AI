@@ -483,6 +483,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/config') {
+    loadEnv();
+    const sbUrl = (process.env.SUPABASE_URL || '').trim();
+    const sbAnon = (process.env.SUPABASE_ANON_KEY || '').trim();
+    const allowedEmails = (process.env.ALLOWED_SIGNUP_EMAILS || '').trim();
+    const allowedDomains = (process.env.ALLOWED_SIGNUP_DOMAINS || '').trim();
+    sendJson(res, 200, {
+      supabaseUrl: sbUrl,
+      supabaseAnonKey: sbAnon,
+      allowedEmails,
+      allowedDomains,
+    });
+    return;
+  }
+
   if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/js/config.js') {
     loadEnv();
     const sbUrl = (process.env.SUPABASE_URL || '').trim();
