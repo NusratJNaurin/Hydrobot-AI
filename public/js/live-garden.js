@@ -249,8 +249,9 @@
       status: isSimulatedSource() ? 'simulated_queued' : 'queued',
     });
 
-    // Persist command to Supabase equipment_commands via RLS when authenticated
-    if (typeof sbClient !== 'undefined' && sbClient && AuthState.session && !AuthState.isDemoAuth) {
+    // Persist command to Supabase equipment_commands via RLS when authenticated on a real Supabase farm
+    const hasValidFarmUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(AuthState?.currentFarmId || '').trim());
+    if (typeof sbClient !== 'undefined' && sbClient && AuthState.session && !AuthState.isDemoAuth && hasValidFarmUuid) {
       if (typeof logEquipmentCommand === 'function') {
         await logEquipmentCommand({
           device: 'pump-1',

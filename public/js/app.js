@@ -773,8 +773,14 @@ async function loadEquipmentCommands() {
   return AuthState.equipmentCommands;
 }
 
+function isUuid(val) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(val || '').trim());
+}
+
 async function logEquipmentCommand({ device, command, maxRuntimeMinutes = 0 }) {
-  if (!sbClient || !AuthState.session || AuthState.isDemoAuth) return { skipped: true };
+  if (!sbClient || !AuthState.session || AuthState.isDemoAuth || !isUuid(AuthState.currentFarmId)) {
+    return { skipped: true };
+  }
   const { data, error } = await sbClient
     .from('equipment_commands')
     .insert({
@@ -1512,12 +1518,13 @@ function commandConfirm(ghId, devKey) {
       <label class="split" style="font-weight:600"><input type="checkbox" id="cmdAck" name="ack" style="width:18px;height:18px"> I have checked that nobody is working on this equipment.</label><p class="err" id="err-ack"></p>`,
     validate: dd => ({ ack: !dd.ack && 'Tick the safety check before sending a command.' }),
     submit: async () => {
-      await Store.put('commands', { id: uid('CMD'), ghId, device: devKey, label: `${d.label}: ${d.action}`, at: Date.now(), by: currentUser().name, status: sbClient && !AuthState.isDemoAuth ? 'queued' : 'not_sent' });
-      if (sbClient && AuthState.session && !AuthState.isDemoAuth) {
+      const canRemoteLog = Boolean(sbClient && AuthState.session && !AuthState.isDemoAuth && isUuid(AuthState.currentFarmId));
+      await Store.put('commands', { id: uid('CMD'), ghId, device: devKey, label: `${d.label}: ${d.action}`, at: Date.now(), by: currentUser().name, status: canRemoteLog ? 'queued' : 'not_sent' });
+      if (canRemoteLog) {
         await logEquipmentCommand({ device: `${ghId}:${devKey}`, command: d.action, maxRuntimeMinutes: devKey === 'pump' ? 5 : devKey === 'fans' ? 20 : 0 });
         return { msg: `Command queued for ${g.name}.`, type: 'ok' };
       }
-      return { msg: 'Command logged but not sent: no controller is connected.', type: 'error' };
+      return { msg: 'Command logged locally (no controller connected).', type: 'ok' };
     }
   });
 }
