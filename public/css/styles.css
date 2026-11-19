@@ -934,5 +934,117 @@ body.hb-landing-mode::before{display:none}
   }
 }
 
+/* ================= Disease Detection Vision AI ================= */
+.dd-preview-wrap{
+  margin-top:12px;
+  display:grid;
+  gap:8px;
+}
+.dd-preview-img{
+  margin-top:0;
+  max-height:260px;
+  width:100%;
+  object-fit:cover;
+  border-radius:10px;
+  border:1px solid var(--line);
+}
+.dd-preview-meta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.dd-loading{
+  display:grid;
+  justify-items:center;
+  text-align:center;
+  gap:10px;
+  padding:42px 18px;
+  border-radius:12px;
+  background:var(--card-2);
+  border:1px dashed var(--line);
+}
+.dd-spinner-lg{
+  width:32px;
+  height:32px;
+  border-width:3px;
+  color:var(--accent);
+}
+.dd-res-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+.dd-summary{
+  margin-bottom:14px;
+  line-height:1.5;
+}
+.dd-section{
+  margin-top:16px;
+}
+.dd-section-hdr{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
+.dd-section-hdr h3{
+  margin:0;
+  font-size:.94rem;
+}
+.dd-symptom-list{
+  background:var(--card-2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 14px 10px 28px;
+  display:grid;
+  gap:6px;
+  font-size:.86rem;
+}
+.dd-hyp-list{
+  display:grid;
+  gap:10px;
+}
+.dd-hyp-card{
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px 14px;
+  background:var(--card);
+}
+.dd-hyp-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.dd-conf-bar{
+  margin-top:8px;
+  height:6px;
+}
+.dd-evidence{
+  margin-top:8px;
+  color:var(--fg);
+  line-height:1.45;
+}
+.dd-sev-box{
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 13px;
+  background:var(--card-2);
+}
+.dd-disclaimer{
+  margin-top:14px;
+  padding-top:10px;
+  border-top:1px solid var(--line);
+}
+
+
 
 

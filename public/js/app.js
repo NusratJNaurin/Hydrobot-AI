@@ -1661,10 +1661,10 @@ async function toggleTask(id) {
     } else toast(done ? 'Task marked as done.' : 'Task reopened.');
   } catch (e) { toast(errText(e), 'error'); }
 }
-function downscale(file, max) {
+function downscale(file, max, quality = 0.84) {
   return new Promise((res, rej) => {
     const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.72)); };
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', quality)); };
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('bad image')); };
     img.src = url;
   });
@@ -1765,54 +1765,201 @@ function vNutrition() {
 /* ================= AI: Disease Detection ================= */
 function vDisease() {
   const d = ui.disease;
-  const connected = !!(ui.sample && ui.sampleImages);
-  return `${pageHead('Disease Detection', 'Upload a plant photo for a preliminary assessment and inspection steps.', connected ? '<span class="tag live">' + ic('spark') + 'Claude image analysis available</span>' + SIM_TAG : SIM_TAG)}
-  <div class="notice warn">${ic('alert')}<div><b>Preliminary assessment only.</b> Results are not a diagnosis. Confirm any suspected disease by physical inspection and, where needed, a lab test.</div></div>
+  const batches = activeBatches();
+  const hasImg = Boolean(safeImgSrc(d?.img));
+  const isBusy = Boolean(d?.busy);
+  return `${pageHead('Disease Detection', 'Upload or capture a plant photo for AI-powered visual symptom inspection and preliminary triage.', '<span class="tag live">' + ic('spark') + 'Vision AI</span>')}
+  <div class="notice warn">${ic('alert')}<div><b>Preliminary AI screening only.</b> Vision analysis highlights visual symptoms and candidate causes to guide scouting—it is not a confirmed agricultural or laboratory diagnosis.</div></div>
   <div class="grid g-2">
-    ${card('Plant photo', `<div class="drop" id="dropZone"><span class="chip-ico">${ic('camera')}</span><b>Drop a leaf or plant photo here</b><span class="small muted">JPEG or PNG, taken in daylight, close to the affected area</span><label class="btn" for="dFile">${ic('upload')}Choose photo</label><input id="dFile" type="file" accept="image/jpeg,image/png,image/webp" class="sr"></div>
-      ${safeImgSrc(d?.img) ? `<img class="thumb" src="${esc(safeImgSrc(d.img))}" alt="Uploaded plant photo" style="margin-top:12px">` : ''}
-      <div class="form-grid" style="margin-top:12px">${fld('Crop batch', `<select id="dBatch">${activeBatches().map(b => `<option value="${b.id}" ${d?.batchId === b.id ? 'selected' : ''}>${b.id} · ${CROPS[b.crop].label} · ${ghById(b.ghId).code}${b.zone.slice(1)}</option>`).join('')}</select>`, 'dBatch')}</div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn primary" data-act="disease-run" ${d?.img && !d.busy ? '' : 'disabled'}>${d?.busy === 'sim' ? '<span class="spinner"></span>Analyzing…' : 'Run simulated check'}</button>${connected ? `<button class="btn" data-act="disease-claude" ${d?.img && !d.busy ? '' : 'disabled'}>${d?.busy === 'claude' ? '<span class="spinner"></span>Asking Claude…' : ic('spark') + 'Analyze with Claude'}</button>` : ''}</div>
-      ${!connected ? '<p class="small muted" style="margin-top:10px">Connected image analysis needs the Claude viewer. It is not available in this view, so only the simulated check runs.</p>' : ''}`)}
-    ${card('Assessment', d?.error ? `<div class="notice crit">${ic('alert')}<div>${esc(d.error)}</div></div>` : d?.result ? diseaseResult(d.result) : empty('scan', 'No photo analyzed yet', 'Upload a photo and run a check to see possible conditions.'))}
+    ${card('Plant image', `
+      <div class="drop" id="dropZone">
+        <span class="chip-ico">${ic('camera')}</span>
+        <b>${hasImg ? 'Replace plant photo' : 'Drop a leaf or plant photo here'}</b>
+        <span class="small muted">JPEG, PNG, or WebP · leaves, herbs, crops, trees, or shrubs in clear daylight</span>
+        <div class="toolbar" style="justify-content:center">
+          <label class="btn" for="dFile">${ic('upload')}Choose photo</label>
+          <label class="btn" for="dCamera">${ic('camera')}Capture photo</label>
+        </div>
+        <input id="dFile" type="file" accept="image/jpeg,image/png,image/webp" class="sr">
+        <input id="dCamera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" class="sr">
+      </div>
+      ${hasImg ? `<div class="dd-preview-wrap">
+        <img class="thumb dd-preview-img" src="${esc(safeImgSrc(d.img))}" alt="Uploaded plant specimen">
+        <div class="dd-preview-meta">
+          <span class="small muted">${esc(d.fileName || 'Uploaded image')}</span>
+          <button type="button" class="btn sm" data-act="disease-reset" ${isBusy ? 'disabled' : ''}>Analyze another image</button>
+        </div>
+      </div>` : ''}
+      <div class="form-grid" style="margin-top:12px">
+        <div class="full">${fld('Crop batch (optional)', `<select id="dBatch">
+          <option value="" ${!d?.batchId ? 'selected' : ''}>General / non-batch plant (tree, shrub, herb, outdoor)</option>
+          ${batches.map(b => `<option value="${b.id}" ${d?.batchId === b.id ? 'selected' : ''}>${b.id} · ${CROPS[b.crop].label} · ${ghById(b.ghId).code}${b.zone.slice(1)}</option>`).join('')}
+        </select>`, 'dBatch')}</div>
+        <div class="full">${fld('Visual context notes (optional)', `<input id="dNotes" type="text" maxlength="220" value="${esc(d?.notes || '')}" placeholder="e.g. Yellowing on lower leaves for 3 days, outdoor basil" ${isBusy ? 'disabled' : ''}>`, 'dNotes')}</div>
+      </div>
+      <div class="toolbar" style="margin-top:14px">
+        <button type="button" class="btn primary" data-act="disease-run" ${hasImg && !isBusy ? '' : 'disabled'}>
+          ${isBusy ? '<span class="spinner"></span>Analyzing image…' : ic('spark') + (d?.result ? 'Re-analyze image' : 'Analyze plant image')}
+        </button>
+        ${(hasImg || d?.result || d?.error) ? `<button type="button" class="btn" data-act="disease-reset" ${isBusy ? 'disabled' : ''}>Clear</button>` : ''}
+      </div>`)}
+    ${card('Assessment', d?.busy
+      ? `<div class="dd-loading" role="status" aria-live="polite">
+          <span class="spinner dd-spinner-lg"></span>
+          <b>Inspecting plant tissue with Vision AI…</b>
+          <span class="small muted">Examining lesions, discoloration, pest indicators, and foliage structure.</span>
+        </div>`
+      : d?.error
+        ? `<div class="notice crit">${ic('alert')}<div><b>Analysis unavailable:</b> ${esc(d.error)}</div></div>
+           <div class="toolbar" style="margin-top:12px">
+             ${hasImg ? `<button type="button" class="btn primary" data-act="disease-run">Try again</button>` : ''}
+             <button type="button" class="btn" data-act="disease-reset">Analyze another image</button>
+           </div>`
+        : d?.result
+          ? diseaseResult(d.result)
+          : empty('scan', 'No photo analyzed yet', 'Upload or capture a plant photo and click Analyze plant image to inspect symptoms and preliminary causes.'))}
   </div>`;
 }
 function diseaseResult(r) {
-  const conf = c => c >= 0.6 ? ['b-warn', 'Moderate'] : c >= 0.35 ? ['b-mute', 'Low'] : ['b-mute', 'Very low'];
-  return `<div class="split" style="margin-bottom:10px">${r.source === 'claude' ? '<span class="tag live">' + ic('spark') + 'Connected: Claude image analysis</span>' : SIM_TAG}<span class="small muted">${fmtDT(r.at)}</span></div>
-  ${r.summary ? `<p style="margin-bottom:12px">${esc(r.summary)}</p>` : ''}
-  <div style="display:grid;gap:10px">${r.conditions.map(c => `<div style="border:1px solid var(--line);border-radius:10px;padding:11px 13px"><div class="split" style="justify-content:space-between"><b>${esc(c.name)}</b><span class="badge ${conf(c.confidence)[0]}">${conf(c.confidence)[1]} confidence · ${Math.round(c.confidence * 100)}%</span></div><p class="small muted" style="margin-top:4px">${esc(c.why)}</p></div>`).join('')}</div>
-  <h3 style="margin:16px 0 6px">Suggested inspection steps</h3><ol class="list-plain">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
-  <div class="toolbar" style="margin-top:14px">${can('tasks') ? `<button class="btn" data-act="disease-task">${ic('clipboard')}Create inspection task</button>` : ''}<button class="btn" data-act="disease-obs">${ic('edit')}Add to batch observations</button></div>`;
+  const confMeta = c => {
+    const pct = Math.round(clamp(Number(c) || 0, 0, 1) * 100);
+    if (pct >= 70) return { badge: 'b-ok', label: 'High confidence', pct };
+    if (pct >= 45) return { badge: 'b-warn', label: 'Moderate confidence', pct };
+    if (pct >= 25) return { badge: 'b-mute', label: 'Low confidence', pct };
+    return { badge: 'b-mute', label: 'Very low confidence', pct };
+  };
+  const sevBadge = level => {
+    if (level === 'Severe') return 'b-crit';
+    if (level === 'Moderate') return 'b-warn';
+    if (level === 'Mild') return 'b-info';
+    if (level === 'None') return 'b-ok';
+    return 'b-mute';
+  };
+  const qualityBanner = r.imageQuality && r.imageQuality !== 'clear'
+    ? `<div class="notice warn" style="margin-bottom:12px">${ic('alert')}<div><b>${r.imageQuality === 'unusable' ? 'Image unsuitable for reliable screening.' : 'Uncertain image clarity or inconclusive symptoms.'}</b> Consider capturing a closer, sharply lit photo of the affected leaf area.</div></div>`
+    : '';
+  const hasSelectedBatch = Boolean(ui.disease?.batchId && Store.get('batches', ui.disease.batchId));
+
+  return `<div class="dd-res-head">
+      <div class="split">
+        <span class="tag live">${ic('spark')}Vision AI · Preliminary</span>
+        ${r.plantIdentified ? `<span class="tag">${esc(r.plantIdentified)}</span>` : ''}
+      </div>
+      <span class="small muted">${fmtDT(r.analyzedAt || Date.now())}</span>
+    </div>
+    ${qualityBanner}
+    ${r.summary ? `<p class="dd-summary">${esc(r.summary)}</p>` : ''}
+
+    <div class="dd-section">
+      <div class="dd-section-hdr">
+        <h3>Visually observed symptoms</h3>
+        <span class="small muted">Direct visual findings</span>
+      </div>
+      <ul class="list-plain dd-symptom-list">
+        ${(r.observedSymptoms || []).map(s => `<li>${esc(s)}</li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-hdr">
+        <h3>AI-generated preliminary hypotheses</h3>
+        <span class="small muted">Not a confirmed diagnosis</span>
+      </div>
+      <div class="dd-hyp-list">
+        ${(r.hypotheses || []).map(h => {
+          const cm = confMeta(h.confidence);
+          return `<div class="dd-hyp-card">
+            <div class="dd-hyp-top">
+              <div>
+                <b>${esc(h.condition)}</b>
+                ${h.category ? `<span class="tag sm" style="margin-left:6px">${esc(h.category)}</span>` : ''}
+              </div>
+              <span class="badge ${cm.badge}">${cm.label} · ${cm.pct}%</span>
+            </div>
+            <div class="bar dd-conf-bar" aria-hidden="true"><i class="${cm.pct >= 70 ? '' : cm.pct >= 45 ? 'warn' : ''}" style="width:${cm.pct}%"></i></div>
+            ${h.visualEvidence ? `<p class="small dd-evidence"><b>Visual evidence:</b> ${esc(h.visualEvidence)}</p>` : ''}
+            ${h.confidenceRationale ? `<p class="small muted" style="margin-top:4px">${esc(h.confidenceRationale)}</p>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    ${r.severity ? `<div class="dd-section">
+      <div class="dd-section-hdr">
+        <h3>Severity assessment</h3>
+        <span class="badge ${sevBadge(r.severity.level)}">${esc(r.severity.level)}</span>
+      </div>
+      <div class="dd-sev-box">
+        <p class="small">${esc(r.severity.assessment)}</p>
+      </div>
+    </div>` : ''}
+
+    <div class="dd-section">
+      <div class="dd-section-hdr">
+        <h3>Recommended next steps</h3>
+      </div>
+      <ol class="list-plain">${(r.recommendedSteps || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    </div>
+
+    ${r.disclaimer ? `<p class="small muted dd-disclaimer">${esc(r.disclaimer)}</p>` : ''}
+
+    <div class="toolbar" style="margin-top:14px">
+      <button type="button" class="btn primary" data-act="disease-reset">${ic('camera')}Analyze another image</button>
+      ${can('tasks') ? `<button type="button" class="btn" data-act="disease-task">${ic('clipboard')}Create inspection task</button>` : ''}
+      ${hasSelectedBatch ? `<button type="button" class="btn" data-act="disease-obs">${ic('edit')}Add to batch observations</button>` : ''}
+    </div>`;
 }
-async function analyzeSimulated() {
-  const d = ui.disease; d.busy = 'sim'; d.error = null; render();
-  await sleep(1100);
-  const { r, g, b, brown, yellow, white } = d.stats;
-  const cond = [];
-  if (brown > 0.08) cond.push({ name: 'Leaf spot (fungal or bacterial)', confidence: clamp(0.3 + brown * 1.5, 0, 0.7), why: `About ${Math.round(brown * 100)}% of pixels are brown or purple-brown, consistent with lesions.` });
-  if (yellow > 0.15) cond.push({ name: 'Nutrient deficiency (chlorosis)', confidence: clamp(0.25 + yellow, 0, 0.65), why: `About ${Math.round(yellow * 100)}% of the image is yellow-green. Interveinal yellowing often follows high pH or low iron.` });
-  if (white > 0.12) cond.push({ name: 'Powdery mildew', confidence: clamp(0.2 + white, 0, 0.6), why: `Pale, low-saturation patches cover about ${Math.round(white * 100)}% of the image.` });
-  if (!cond.length) cond.push({ name: 'No clear symptoms detected', confidence: 0.4, why: `Colour is mostly healthy green (average RGB ${r}, ${g}, ${b}). Early infections may not be visible in a photo.` });
-  cond.sort((a, b) => b.confidence - a.confidence);
-  d.result = { source: 'sim', at: Date.now(), conditions: cond.slice(0, 3), summary: 'Colour-analysis heuristic. It only measures colour in the image and cannot recognize disease.', steps: ['Check the underside of 10 leaves in the affected row for spores, webbing or insects.', 'Compare new and old leaves: yellowing on new growth points to pH or iron, on old growth to nitrogen or magnesium.', 'Inspect roots: healthy roots are white and firm; brown, slimy roots suggest Pythium.', 'Measure pH, EC and water temperature in the reservoir feeding this zone.', 'Isolate affected plants and sanitize tools before moving to the next zone.'] };
-  d.busy = null; render();
-}
-async function analyzeClaude() {
-  const d = ui.disease, b = Store.get('batches', d.batchId);
-  d.busy = 'claude'; d.error = null; render();
+async function analyzeDiseaseImage() {
+  const d = ui.disease;
+  if (!d || !safeImgSrc(d.img)) return;
+  d.busy = true;
+  d.error = null;
+  render();
+
   try {
-    const blob = await (await fetch(d.img)).blob();
-    const out = await ui.sample.json(`You are helping a hydroponic grower triage a plant photo. Crop: ${CROPS[b.crop].label}, stage ${b.stage}, greenhouse ${ghById(b.ghId).name}. Latest demo readings: pH ${readings(b.ghId).ph}, EC ${readings(b.ghId).ec} mS/cm, air temp ${readings(b.ghId).temp} °C, humidity ${readings(b.ghId).hum}%.
-Look at the attached image and give a cautious, preliminary assessment (not a diagnosis). Reply with only JSON: {"summary": string (1-2 sentences), "conditions": [{"name": string, "confidence": number 0-1, "why": string}] (1-3 items, most likely first), "steps": [string] (3-6 physical inspection steps)}.`, { images: [blob] });
-    if (!out || !Array.isArray(out.conditions) || !Array.isArray(out.steps)) throw { code: 'invalid_json' };
-    d.result = { source: 'claude', at: Date.now(), summary: String(out.summary || ''), conditions: out.conditions.slice(0, 3).map(c => ({ name: String(c.name), confidence: clamp(Number(c.confidence) || 0, 0, 1), why: String(c.why || '') })), steps: out.steps.slice(0, 6).map(String) };
+    const b = d.batchId ? Store.get('batches', d.batchId) : null;
+    const batchContext = {};
+    if (b) {
+      batchContext.cropLabel = CROPS[b.crop]?.label || b.crop;
+      batchContext.stage = b.stage;
+      batchContext.greenhouse = ghById(b.ghId)?.name || b.ghId;
+      const r = readings(b.ghId);
+      if (r) batchContext.readings = { ph: r.ph, ec: r.ec, temp: r.temp, hum: r.hum };
+    }
+    if (d.notes && d.notes.trim()) {
+      batchContext.notes = d.notes.trim();
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (!AuthState.isDemoAuth && AuthState.session?.access_token) {
+      headers.Authorization = `Bearer ${AuthState.session.access_token}`;
+    }
+
+    const response = await fetch('/api/disease-analyze', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        imageDataUrl: d.img,
+        batchContext: Object.keys(batchContext).length ? batchContext : null,
+      }),
+    });
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok || !out || !Array.isArray(out.hypotheses)) {
+      throw new Error(out?.error || 'Could not analyze the plant image. Please try again.');
+    }
+    d.result = out;
   } catch (e) {
-    d.error = { not_granted: 'Claude access was not allowed for this page. The simulated check still works.', rate_limited: 'Claude is busy or your usage limit was reached. Try again later.', image_rejected: 'Claude could not read this image. Try a JPEG or PNG under 20 MB.', invalid_json: 'Claude replied in an unexpected format. Try again.' }[e.code] || 'Claude could not analyze the photo right now. Try again or use the simulated check.';
+    d.error = e?.message || 'Unable to reach Vision AI analysis right now. Please try again.';
   }
-  d.busy = null; render();
+  d.busy = false;
+  render();
+}
+function resetDiseaseAnalysis() {
+  ui.disease = { batchId: ui.disease?.batchId || '' };
+  render();
 }
 async function loadDiseaseFile(file) {
+  if (!file) return;
   try {
     validateImageUpload(file);
   } catch (e) {
@@ -1820,14 +1967,19 @@ async function loadDiseaseFile(file) {
     return render();
   }
   try {
-    const img = await downscale(file, 800);
-    const el = new Image(); el.src = img; await el.decode();
-    const c = document.createElement('canvas'); c.width = 80; c.height = Math.round(80 * el.height / el.width); const x = c.getContext('2d'); x.drawImage(el, 0, 0, c.width, c.height);
-    const px = x.getImageData(0, 0, c.width, c.height).data; let R = 0, G = 0, B = 0, n = 0, brown = 0, yellow = 0, white = 0;
-    for (let i = 0; i < px.length; i += 4) { const r = px[i], g = px[i + 1], b = px[i + 2]; R += r; G += g; B += b; n++; const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-      if (r > g && r > b && mx < 170 && mx - mn > 30) brown++; else if (r > 150 && g > 140 && b < 110 && Math.abs(r - g) < 50) yellow++; else if (mn > 185 && mx - mn < 25) white++; }
-    ui.disease = { img, batchId: $('#dBatch')?.value || activeBatches()[0]?.id, stats: { r: Math.round(R / n), g: Math.round(G / n), b: Math.round(B / n), brown: brown / n, yellow: yellow / n, white: white / n } };
-  } catch (e) { ui.disease = { error: 'The photo could not be read. Try a different file.' }; }
+    const img = await downscale(file, 1280, 0.86);
+    const el = new Image();
+    el.src = img;
+    await el.decode();
+    ui.disease = {
+      img,
+      fileName: file.name || 'Captured plant photo',
+      batchId: $('#dBatch')?.value ?? ui.disease?.batchId ?? '',
+      notes: $('#dNotes')?.value ?? ui.disease?.notes ?? '',
+    };
+  } catch (e) {
+    ui.disease = { error: 'The photo could not be read. Try a different JPEG, PNG, or WebP file.' };
+  }
   render();
 }
 
@@ -2609,10 +2761,34 @@ document.addEventListener('click', async e => {
     case 'reading-new': readingForm(id); break;
     case 'targets-reset': try { await Store.put('targets', { id, ranges: DEFAULT_TARGETS[id] }); toast('Default targets restored.'); } catch (er) { toast(errText(er), 'error'); } break;
     case 'integration': openModal({ title: 'Connect devices', submitLabel: null, body: `<div class="notice warn">${ic('plug')}<div><b>Device integration is not available in this prototype.</b> Nothing has been connected.</div></div><p>Hydrobot.Ai is structured for an IoT gateway that would publish readings per greenhouse and sensor, for example over MQTT topics like <span class="mono">farm/riverside/gh-a/ph</span>, or through a Modbus TCP bridge for controllers. Once connected, readings would replace demo data and lose the demo label, and equipment commands would still require explicit confirmation.</p>`, footer: '<button type="button" class="btn" data-close>Close</button>' }); break;
-    case 'disease-run': analyzeSimulated(); break;
-    case 'disease-claude': analyzeClaude(); break;
-    case 'disease-task': { const b = Store.get('batches', ui.disease.batchId); taskForm(); setTimeout(() => { $('#k-title').value = `Inspect ${b.id} for ${ui.disease.result.conditions[0].name.toLowerCase()}`; $('#k-gh').value = b.ghId; $('#k-pri').value = 'High'; $('#k-notes').value = 'Preliminary photo assessment. Steps:\n' + ui.disease.result.steps.map((s, i) => `${i + 1}. ${s}`).join('\n'); }, 30); break; }
-    case 'disease-obs': { const b = Store.get('batches', ui.disease.batchId); obsForm(b.id); setTimeout(() => { $('#o-note').value = `Photo check (${ui.disease.result.source === 'claude' ? 'Claude' : 'simulated'}, preliminary): ${ui.disease.result.conditions.map(c => `${c.name} ${Math.round(c.confidence * 100)}%`).join('; ')}.`; }, 30); break; }
+    case 'disease-run': analyzeDiseaseImage(); break;
+    case 'disease-reset': resetDiseaseAnalysis(); break;
+    case 'disease-task': {
+      const res = ui.disease?.result;
+      if (!res) break;
+      const b = ui.disease?.batchId ? Store.get('batches', ui.disease.batchId) : null;
+      const topHyp = res.hypotheses?.[0]?.condition || 'plant pathology check';
+      taskForm();
+      setTimeout(() => {
+        $('#k-title').value = b
+          ? `Inspect ${b.id} for ${topHyp.toLowerCase()}`
+          : `Inspect ${res.plantIdentified || 'plant'} for ${topHyp.toLowerCase()}`;
+        if (b?.ghId) $('#k-gh').value = b.ghId;
+        $('#k-pri').value = res.severity?.level === 'Severe' || res.severity?.level === 'Moderate' ? 'High' : 'Medium';
+        $('#k-notes').value = `Vision AI preliminary screening (Severity: ${res.severity?.level || 'Undetermined'}).\nObserved: ${(res.observedSymptoms || []).join('; ')}\nNext steps:\n` + (res.recommendedSteps || []).map((s, i) => `${i + 1}. ${s}`).join('\n');
+      }, 30);
+      break;
+    }
+    case 'disease-obs': {
+      const b = ui.disease?.batchId ? Store.get('batches', ui.disease.batchId) : null;
+      const res = ui.disease?.result;
+      if (!b || !res) break;
+      obsForm(b.id);
+      setTimeout(() => {
+        $('#o-note').value = `Vision AI screening (preliminary, severity: ${res.severity?.level || 'Undetermined'}): ${(res.hypotheses || []).map(h => `${h.condition} (${Math.round((h.confidence || 0) * 100)}%)`).join('; ')}. Observed: ${(res.observedSymptoms || []).slice(0, 2).join('; ')}.`;
+      }, 30);
+      break;
+    }
     case 'ask': ask(a.dataset.q); break;
     case 'chat-clear': ui.chat = []; render(); break;
     case 'expense-new': expenseForm(); break;
@@ -2683,8 +2859,9 @@ document.addEventListener('change', async e => {
   }
   */
   if (t.id === 'showResolved') { ui.showResolved = t.checked; render(); return; }
-  if (t.id === 'dFile') { loadDiseaseFile(t.files[0]); return; }
+  if (t.id === 'dFile' || t.id === 'dCamera') { loadDiseaseFile(t.files[0]); return; }
   if (t.id === 'dBatch' && ui.disease) { ui.disease.batchId = t.value; return; }
+  if (t.id === 'dNotes') { if (!ui.disease) ui.disease = {}; ui.disease.notes = t.value; return; }
   if (t.dataset.deliv) { const o = Store.get('orders', t.dataset.deliv); const ds = t.value; try { await Store.put('orders', { ...o, delivery: { ...o.delivery, status: ds }, status: ds === 'Delivered' ? 'Delivered' : ds === 'Cancelled' ? 'Cancelled' : ds === 'Out for delivery' && o.status !== 'Delivered' ? 'Packed' : o.status }); toast(`${o.id}: ${ds}.`); } catch (er) { toast(errText(er), 'error'); } return; }
   if (t.dataset.filter && t.tagName === 'SELECT') { /* handled by input */ }
 });

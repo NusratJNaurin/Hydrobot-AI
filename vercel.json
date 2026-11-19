@@ -4,6 +4,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/farm-assistant.js": { "maxDuration": 30 },
+    "api/disease-analyze.js": { "maxDuration": 30 },
     "api/config.js": { "maxDuration": 10 },
     "api/auth-signup-check.js": { "maxDuration": 10 }
   },

@@ -5,11 +5,13 @@ const path = require('node:path');
 const http = require('node:http');
 const { URL } = require('node:url');
 const { GoogleGenAI } = require('@google/genai');
+const diseaseAnalyzeHandler = require('./api/disease-analyze');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const PUBLIC_REALPATH = fs.realpathSync(PUBLIC_DIR);
 const MAX_API_BODY_BYTES = 64 * 1024;
+const MAX_DISEASE_BODY_BYTES = 8 * 1024 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const rateBuckets = new Map();
@@ -80,13 +82,13 @@ function sendJson(res, status, body, extraHeaders = {}) {
   res.end(text);
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = MAX_API_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', chunk => {
       size += chunk.length;
-      if (size > MAX_API_BODY_BYTES) {
+      if (size > maxBytes) {
         reject(Object.assign(new Error('Request payload is too large.'), { status: 413, code: 'payload_too_large' }));
         req.destroy();
         return;
@@ -219,8 +221,26 @@ function parseGeminiError(error) {
     } catch {}
   }
 
-  if (rawMessage.includes('API key not valid') || rawMessage.includes('API_KEY_INVALID')) {
-    return { message: 'Assistant service authentication failed.', code: 'provider_auth_error', status: 502 };
+  if (
+    rawMessage.includes('API key not valid') ||
+    rawMessage.includes('API_KEY_INVALID') ||
+    rawMessage.includes('API_KEY_SERVICE_BLOCKED') ||
+    rawMessage.includes('PERMISSION_DENIED') ||
+    status === 403
+  ) {
+    return {
+      message: 'Assistant service authentication failed. Check GEMINI_API_KEY in Settings > Secrets.',
+      code: 'provider_auth_error',
+      status: 502,
+    };
+  }
+
+  if (rawMessage.includes('RESOURCE_EXHAUSTED') || status === 429) {
+    return {
+      message: 'Assistant rate limit reached. Please wait a moment and try again.',
+      code: 'rate_limited',
+      status: 429,
+    };
   }
 
   if (status >= 400 && status < 500) {
@@ -236,13 +256,16 @@ async function answerFarmQuestion(body) {
   if (question.length > 2000) throw Object.assign(new Error('The question is too long.'), { status: 400, code: 'bad_request' });
 
   loadEnv();
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim();
   if (!apiKey) {
-    throw Object.assign(new Error('Assistant service is not configured.'), { status: 503, code: 'not_configured' });
+    throw Object.assign(new Error('Assistant service is not configured. Check GEMINI_API_KEY in Settings > Secrets.'), { status: 503, code: 'not_configured' });
   }
 
-  const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash'])).filter(Boolean);
+  const preferredModel = (process.env.GEMINI_MODEL || '').trim() || 'gemini-4-hydrogen';
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-4-hydrogen'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
   const records = sanitizeFarmContext(body.farmContext);
 
@@ -319,8 +342,12 @@ SITE FEATURES:
   }
 
   if (lastError) {
-    console.error('Gemini API error:', lastError?.message || lastError);
     const parsed = parseGeminiError(lastError);
+    if (parsed.code === 'provider_auth_error' || parsed.code === 'rate_limited') {
+      console.warn(`[farm-assistant] ${parsed.code} (${parsed.status}): ${parsed.message}`);
+    } else {
+      console.error('[farm-assistant] Gemini error:', lastError?.message || lastError);
+    }
     throw Object.assign(new Error(parsed.message), { status: parsed.status, code: parsed.code });
   }
 
@@ -478,6 +505,32 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, data);
     } catch (error) {
       const parsed = parseGeminiError(error);
+      sendJson(res, parsed.status || 500, { error: parsed.message, code: parsed.code || 'server_error' });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/disease-analyze') {
+    if (!verifySameOrigin(req)) {
+      return sendJson(res, 403, { error: 'Cross-origin requests are not allowed.', code: 'forbidden_origin' });
+    }
+    const ctype = String(req.headers['content-type'] || '').toLowerCase();
+    if (!ctype.includes('application/json')) {
+      return sendJson(res, 415, { error: 'Content-Type must be application/json.', code: 'unsupported_media_type' });
+    }
+    const rl = checkRateLimit(req);
+    if (!rl.allowed) {
+      return sendJson(res, 429, { error: 'Too many image analysis requests. Please wait a moment before trying again.', code: 'rate_limited' }, { 'Retry-After': String(rl.retryAfter) });
+    }
+
+    try {
+      await verifySupabaseAuthIfConfigured(req);
+      loadEnv();
+      const body = await readBody(req, MAX_DISEASE_BODY_BYTES);
+      const data = await diseaseAnalyzeHandler.analyzePlantDisease(body);
+      sendJson(res, 200, data);
+    } catch (error) {
+      const parsed = diseaseAnalyzeHandler.parseGeminiError(error);
       sendJson(res, parsed.status || 500, { error: parsed.message, code: parsed.code || 'server_error' });
     }
     return;

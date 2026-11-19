@@ -113,8 +113,26 @@ function parseGeminiError(error) {
     } catch {}
   }
 
-  if (rawMessage.includes('API key not valid') || rawMessage.includes('API_KEY_INVALID')) {
-    return { message: 'Assistant service authentication failed.', code: 'provider_auth_error', status: 502 };
+  if (
+    rawMessage.includes('API key not valid') ||
+    rawMessage.includes('API_KEY_INVALID') ||
+    rawMessage.includes('API_KEY_SERVICE_BLOCKED') ||
+    rawMessage.includes('PERMISSION_DENIED') ||
+    status === 403
+  ) {
+    return {
+      message: 'Assistant service authentication failed. Check GEMINI_API_KEY in Settings > Secrets.',
+      code: 'provider_auth_error',
+      status: 502,
+    };
+  }
+
+  if (rawMessage.includes('RESOURCE_EXHAUSTED') || status === 429) {
+    return {
+      message: 'Assistant rate limit reached. Please wait a moment and try again.',
+      code: 'rate_limited',
+      status: 429,
+    };
   }
 
   if (status >= 400 && status < 500) {
@@ -129,13 +147,16 @@ async function answerFarmQuestion(body) {
   if (!question) throw httpError('A question is required.', 400, 'bad_request');
   if (question.length > 2000) throw httpError('The question is too long.', 400, 'bad_request');
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '')
+    .trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim();
   if (!apiKey) {
-    throw httpError('Assistant service is not configured.', 503, 'not_configured');
+    throw httpError('Assistant service is not configured. Check GEMINI_API_KEY in Settings > Secrets.', 503, 'not_configured');
   }
 
-  const preferredModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash'])).filter(Boolean);
+  const preferredModel = (process.env.GEMINI_MODEL || '').trim() || 'gemini-4-hydrogen';
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-4-hydrogen'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
   const records = sanitizeFarmContext(body.farmContext);
 
@@ -159,7 +180,14 @@ CORE DOMAIN & SCOPE:
 SITE FEATURES:
 - Dashboard, Plant Management, Greenhouse Management, Harvest Management, Farmer Tasks, Smart Inventory, Crop Nutrition, Disease Detection, Production Forecast, Yield Analytics, Financial Dashboard, Sales, Logistics, Smart Alerts, Live Garden 3D.`;
 
-  const ai = new GoogleGenAI({ apiKey, apiVersion: 'v1beta' });
+  const ai = new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
   const userPrompt = `<farm_records_json>\n${records}\n</farm_records_json>\n\nUser Question: ${question}`;
 
   const contents = [
@@ -204,8 +232,12 @@ SITE FEATURES:
   }
 
   if (lastError) {
-    console.error('Gemini API error:', lastError?.message || lastError);
     const parsed = parseGeminiError(lastError);
+    if (parsed.code === 'provider_auth_error' || parsed.code === 'rate_limited') {
+      console.warn(`[farm-assistant] ${parsed.code} (${parsed.status}): ${parsed.message}`);
+    } else {
+      console.error('[farm-assistant] Gemini error:', lastError?.message || lastError);
+    }
     throw httpError(parsed.message, parsed.status, parsed.code);
   }
 
