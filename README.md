@@ -16,7 +16,7 @@ Growers, greenhouse managers, and vertical farm operators deal with fragmented s
 Hydrobot.Ai provides a single-page application (SPA) dashboard paired with a Node.js server proxy. It unifies 15 farm management modules and implements a **Hybrid Response-Handling Architecture**:
 1. **Instant Direct Data Retrieval:** Queries about current farm state (batches, tasks, low inventory, harvests) are resolved locally in milliseconds directly from application state.
 2. **Instant Knowledge Base Matching:** General agronomic questions covered in `knowledge_base.json` (such as hydroponic system specs, VPD targets, chlorosis diagnostics, or IPM) return instant structured answers without an LLM call.
-3. **Google Gemini AI with Search Grounding:** Complex agricultural inquiries, technology recommendations, and open-ended farming questions are routed through a server-side proxy to the `@google/genai` SDK using `gemini-3.8-flash` with Google Search grounding enabled for up-to-date research and live web sources.
+3. **Google Gemini AI with Search Grounding:** Complex agricultural inquiries, technology recommendations, and open-ended farming questions are routed through a server-side proxy to the `@google/genai` SDK using `gemini-2.5-flash` with Google Search grounding enabled for up-to-date research and live web sources.
 
 ---
 
@@ -78,7 +78,7 @@ Hydrobot.Ai provides a single-page application (SPA) dashboard paired with a Nod
                                                             ┌──────────────────────────────────────┐
                                                             │     Google Gemini AI Platform        │
                                                             │    @google/genai (v3.0.0+)           │
-                                                            │   Model: gemini-3.8-flash            │
+                                                            │   Model: gemini-2.5-flash            │
                                                             │   Tools: Google Search Grounding     │
                                                             └──────────────────────────────────────┘
 ```
@@ -124,7 +124,8 @@ cp .env.example .env
 |---|---|---|---|
 | `PORT` | Local HTTP server port | `3000` | No |
 | `GEMINI_API_KEY` | API Key from Google AI Studio | — | Yes (for AI Assistant) |
-| `GEMINI_MODEL` | Gemini Model ID | `gemini-3.8-flash` | No |
+| `GEMINI_MODEL` | Gemini Model ID (text assistant) | `gemini-2.5-flash` | No |
+| `GEMINI_VISION_MODEL` | Gemini vision model for disease detection | `gemini-2.5-flash` | No |
 
 *Note: If `GEMINI_API_KEY` is omitted, the application falls back gracefully to local knowledge base matching and simulated response mode.*
 
@@ -139,7 +140,8 @@ When deploying **Hydrobot.Ai** to Vercel:
 - **Output Directory**: `.` (or leave blank).
 - **Environment Variables**:
   - `GEMINI_API_KEY`: *(Required)* Your API key from Google AI Studio.
-  - `GEMINI_MODEL`: *(Optional)* `gemini-3.8-flash` (or `gemini-2.5-flash`).
+  - `GEMINI_MODEL`: *(Optional)* `gemini-2.5-flash`.
+  - `GEMINI_VISION_MODEL`: *(Optional)* `gemini-2.5-flash` for disease image analysis.
 
 *The included `vercel.json` file automatically configures Vercel serverless execution for `server.js` and routes `/api/farm-assistant` requests.*
 
@@ -164,7 +166,8 @@ Set up your `.env` file:
 ```bash
 PORT=3000
 GEMINI_API_KEY=your_google_ai_studio_api_key_here
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_VISION_MODEL=gemini-2.5-flash
 ```
 
 ### 3. Start Development Server

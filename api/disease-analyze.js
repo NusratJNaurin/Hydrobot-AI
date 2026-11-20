@@ -383,10 +383,19 @@ async function analyzePlantDisease(body) {
       headers: {
         'User-Agent': 'aistudio-build',
       },
+      // v1beta is required: systemInstruction and structured output (responseSchema)
+      // are not supported on the v1 generateContent endpoint.
+      apiVersion: 'v1beta',
     },
   });
 
-  const modelToUse = (process.env.GEMINI_VISION_MODEL || 'gemini-3.8-flash').trim();
+  const modelsToTry = Array.from(
+    new Set([
+      (process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash').trim(),
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+    ].filter(Boolean))
+  );
 
   const systemInstruction = `You are a careful horticultural and plant pathology vision assistant for Hydrobot.AI.
 Analyze uploaded plant photos (leaves, herbs, vegetables, fruit trees, shrubs, ornamentals, or hydroponic/soil crops) with scientific accuracy and strict transparency.
@@ -406,40 +415,41 @@ CRITICAL RULES:
   const textPrompt = `Inspect this uploaded image carefully and return a structured JSON plant pathology assessment.${contextBlock}`;
 
   let lastError = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: modelToUse,
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { inlineData: { mimeType, data: base64 } },
-              { text: textPrompt },
-            ],
-          },
-        ],
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: RESPONSE_SCHEMA,
-        },
-      });
-
-      const rawText = (response.text || '').trim();
-      if (!rawText) {
-        throw httpError('Vision AI returned an empty response.', 502, 'empty_response');
-      }
-
-      let parsed;
+  for (const modelToUse of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        parsed = JSON.parse(rawText);
-      } catch {
-        throw httpError('Vision AI returned an unexpected response format. Please try again.', 502, 'invalid_json');
-      }
+        const response = await ai.models.generateContent({
+          model: modelToUse,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType, data: base64 } },
+                { text: textPrompt },
+              ],
+            },
+          ],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+          },
+        });
 
-      return normalizeAnalysis(parsed, modelToUse);
-    } catch (error) {
+        const rawText = (response.text || '').trim();
+        if (!rawText) {
+          throw httpError('Vision AI returned an empty response.', 502, 'empty_response');
+        }
+
+        let parsed;
+        try {
+          parsed = JSON.parse(rawText);
+        } catch {
+          throw httpError('Vision AI returned an unexpected response format. Please try again.', 502, 'invalid_json');
+        }
+
+        return normalizeAnalysis(parsed, modelToUse);
+      } catch (error) {
       lastError = error;
       if (error?.isHttpError) break;
 
@@ -452,6 +462,7 @@ CRITICAL RULES:
       }
       break;
     }
+  }
   }
 
   const parsedErr = parseGeminiError(lastError);

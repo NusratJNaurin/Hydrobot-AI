@@ -155,8 +155,8 @@ async function answerFarmQuestion(body) {
     throw httpError('Assistant service is not configured. Check GEMINI_API_KEY in Settings > Secrets.', 503, 'not_configured');
   }
 
-  const preferredModel = (process.env.GEMINI_MODEL || '').trim() || 'gemini-4-hydrogen';
-  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-4-hydrogen'])).filter(Boolean);
+  const preferredModel = (process.env.GEMINI_MODEL || '').trim() || 'gemini-2.5-flash';
+  const modelsToTry = Array.from(new Set([preferredModel, 'gemini-2.5-flash', 'gemini-1.5-flash'])).filter(Boolean);
   const history = Array.isArray(body.history) ? body.history.slice(-8) : [];
   const records = sanitizeFarmContext(body.farmContext);
 
@@ -186,6 +186,9 @@ SITE FEATURES:
       headers: {
         'User-Agent': 'aistudio-build',
       },
+      // v1beta is required: systemInstruction is not supported on the v1
+      // generateContent endpoint.
+      apiVersion: 'v1beta',
     },
   });
   const userPrompt = `<farm_records_json>\n${records}\n</farm_records_json>\n\nUser Question: ${question}`;
