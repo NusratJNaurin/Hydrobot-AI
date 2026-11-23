@@ -1045,6 +1045,99 @@ body.hb-landing-mode::before{display:none}
   border-top:1px solid var(--line);
 }
 
+/* ================= Overview Dashboard Desktop Enrichment & Alignment ================= */
+.metric-unit{
+  font-size:.7rem;
+  font-family:var(--font);
+  font-weight:600;
+}
+.dash-overview-grid .metrics-sub{
+  display:none;
+}
 
+@media (max-width:1180px){
+  .dash-overview-grid .dash-alerts-card .alert:nth-child(n+6){
+    display:none;
+  }
+}
 
+@media (min-width:1024px){
+  .dash-overview-grid .metrics-sub{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:8px;
+  }
+  .dash-overview-grid .metrics-sub .metric{
+    padding:6px 8px;
+  }
+  .dash-overview-grid .metrics-sub .metric b{
+    display:flex;
+    align-items:baseline;
+    flex-wrap:wrap;
+    column-gap:3px;
+    font-size:clamp(.78rem,.62rem + .24vw,.92rem);
+    line-height:1.2;
+  }
+  .dash-overview-grid .metrics-sub .metric-unit{
+    font-size:.65rem;
+  }
+  .dash-overview-grid .metrics-sub .metric.metric-crit{
+    border-color:rgba(176,38,29,.35);
+    border-color:color-mix(in srgb,var(--crit) 32%,transparent);
+    background:var(--crit-bg);
+  }
+}
 
+@media (min-width:1024px) and (max-width:1320px){
+  .dash-overview-grid .metrics-sub{
+    gap:6px;
+  }
+  .dash-overview-grid .metrics-sub .metric{
+    padding:6px;
+  }
+}
+
+@media (min-width:1181px){
+  .dash-overview-grid{
+    align-items:stretch;
+  }
+  .dash-overview-grid .dash-alerts-slot{
+    position:relative;
+    min-height:0;
+  }
+  .dash-overview-grid .dash-alerts-card{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .dash-overview-grid .dash-alerts-card>.card-h{
+    flex:0 0 auto;
+  }
+  .dash-overview-grid .dash-alerts-card>.card-b{
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+  }
+  .dash-overview-grid .dash-alerts-card .alerts{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    align-content:start;
+    padding-right:4px;
+    scrollbar-width:thin;
+    scrollbar-color:var(--line) transparent;
+  }
+  .dash-overview-grid .dash-alerts-card .alerts::-webkit-scrollbar{
+    width:6px;
+  }
+  .dash-overview-grid .dash-alerts-card .alerts::-webkit-scrollbar-track{
+    background:transparent;
+  }
+  .dash-overview-grid .dash-alerts-card .alerts::-webkit-scrollbar-thumb{
+    background:var(--line);
+    border-radius:99px;
+  }
+}

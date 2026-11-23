@@ -1300,9 +1300,11 @@ function vDashboard() {
   return `
   ${pageHead('Dashboard', `${greeting}, ${esc(currentUser().name.split(' ')[0])} · Riverside Hydro Farm · ${fmtDL(dOff(0))}`, `${DEMO_TAG}<a class="btn" href="#alerts">${ic('bell')}Alerts (${al.length})</a>${can('tasks') ? `<button class="btn primary" data-act="task-new">${ic('plus')}New task</button>` : ''}`)}
   <section class="kpis" aria-label="Farm summary">${k6.map(([i, l, v, s]) => `<div class="card kpi"><div class="kpi-top"><span class="chip-ico">${ic(i)}</span>${l}</div><div class="kpi-val">${v}</div><div class="kpi-sub">${s}</div></div>`).join('')}</section>
-  <div class="grid g-main">
-    ${card('Greenhouse status', `<div class="gh-grid">${GH.map(ghCard).join('')}</div>`, { sub: 'Select a greenhouse to open its monitoring page', actions: DEMO_TAG })}
-    ${card('Smart alerts', alertFeed(al.slice(0, 5)) , { sub: `${al.filter(a => a.sev === 'crit').length} critical · ${al.filter(a => a.sev === 'warn').length} attention`, actions: '<a class="btn sm" href="#alerts">View all</a>' })}
+  <div class="grid g-main dash-overview-grid">
+    ${card('Greenhouse status', `<div class="gh-grid">${GH.map(g => ghCard(g, { secondary: true })).join('')}</div>`, { sub: 'Select a greenhouse to open its monitoring page', actions: DEMO_TAG, cls: 'dash-gh-card' })}
+    <div class="dash-alerts-slot">
+      ${card('Smart alerts', alertFeed(al), { sub: `${al.filter(a => a.sev === 'crit').length} critical · ${al.filter(a => a.sev === 'warn').length} attention`, actions: '<a class="btn sm" href="#alerts">View all</a>', cls: 'dash-alerts-card' })}
+    </div>
   </div>
   <div class="grid g-2">
     ${card('Harvest pipeline', pipelineTable(pipe), { sub: 'Next harvest per active batch', actions: '<a class="btn sm" href="#harvest">Harvest calendar</a>' })}
@@ -1311,13 +1313,26 @@ function vDashboard() {
   ${card('Performance trends', trendCharts(), { sub: 'Yield from harvest records; water and energy are demo meter data', actions: seg('trendRange', [[7, '7 days'], [30, '30 days'], [90, '90 days']], ui.trendRange, 'Date range') })}
   `;
 }
-function ghCard(g) {
+
+function ghCard(g, opts = {}) {
   const st = ghStatus(g.id), r = readings(g.id), t = targets(g.id);
-  const m = (k, short) => { const s = sensorDef(k); const ms = metricStatus(r[k], t[k]); return `<div class="metric"><small>${ic(s.icon)}${short}</small><b class="${ms === 'ok' ? '' : ms}">${num(r[k], s.dec)}<span class="muted" style="font-size:.7rem;font-family:var(--font)"> ${s.unit}</span></b></div>`; };
+  const m = (k, short, extraCritCls = '') => {
+    const s = sensorDef(k);
+    const val = r?.[k];
+    const hasVal = val !== null && val !== undefined && Number.isFinite(Number(val));
+    const ms = hasVal && t?.[k] ? metricStatus(val, t[k]) : 'ok';
+    const boxCls = ms === 'crit' && extraCritCls ? ` ${extraCritCls}` : '';
+    const unitHtml = s.unit ? `<span class="muted metric-unit">${s.unit}</span>` : '';
+    return `<div class="metric${boxCls}"><small>${ic(s.icon)}${short}</small><b class="${ms === 'ok' ? '' : ms}">${hasVal ? `${num(val, s.dec)}${unitHtml ? ` ${unitHtml}` : ''}` : '—'}</b></div>`;
+  };
   const crops = ghCrops(g.id);
+  const secondaryRow = opts.secondary
+    ? `<div class="metrics metrics-sub" aria-label="Water and nutrient telemetry">${m('res', 'Reservoir', 'metric-crit')}${m('ec', 'EC')}${m('ph', 'pH')}</div>`
+    : '';
   return `<a class="gh-card st-${st}" href="#${g.id}" aria-label="${g.name}: ${ST_LABEL[st]}. Open monitoring page">
     <div class="gh-top"><div><b>${g.name}</b><div class="muted">${esc(crops.join(', ') || 'No active crop')}</div></div>${badge(st)}</div>
     <div class="metrics">${m('temp', 'Temp')}${m('hum', 'Humidity')}${m('co2', 'CO₂')}<div class="metric"><small>${ic('sprout')}Plants</small><b>${num(ghPlants(g.id))}</b></div></div>
+    ${secondaryRow}
     <div class="gh-foot"><span>${g.system} · ${g.zones.length} zones</span><span>Demo reading · ${READ_AT[g.id]} min ago</span></div></a>`;
 }
 function alertFeed(list, full = false) {
@@ -2326,7 +2341,11 @@ async function ask(q) {
   scrollChat();
 
   try {
-    const history = ui.chat.slice(0, -1).slice(-8).filter(m => m.role !== 'bot' || m.src !== 'pending').map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: m.text }));
+    const history = ui.chat
+      .slice(0, -1)
+      .slice(-8)
+      .filter(m => m && m.src !== 'pending' && m.src !== 'error' && typeof m.text === 'string' && m.text.trim())
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'model', text: m.text }));
     const headers = { 'Content-Type': 'application/json' };
     if (!AuthState.isDemoAuth && AuthState.session?.access_token) {
       headers.Authorization = `Bearer ${AuthState.session.access_token}`;
