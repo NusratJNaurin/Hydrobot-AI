@@ -65,18 +65,37 @@
   };
 
   function isSimulatedSource() {
-    // True until a real connected gateway / live telemetry feed replaces simulator data
+    if (window.HydrobotData) return window.HydrobotData.isSimulated();
     return !window.LIVE_TELEMETRY_CONNECTED;
   }
 
+  function liveReadingTimestampFor(sensorId) {
+    const m = Sim.sensorMeta[sensorId];
+    if (!m) return null;
+    if (typeof readingMeta === 'function') {
+      const meta = readingMeta(m.ghId, m.metric);
+      if (meta && meta.lastAt) return meta.lastAt;
+    }
+    return null;
+  }
+
   function isSensorOffline(sensorId) {
-    const s = Sim.sensorMeta[sensorId];
-    if (!s) return true;
-    return (Date.now() - s.lastReportedAt) >= OFFLINE_THRESHOLD_MS || Boolean(s.stalled);
+    const m = Sim.sensorMeta[sensorId];
+    if (!m) return true;
+    if (!isSimulatedSource()) {
+      const r = readings(m.ghId);
+      if (!r || r[m.metric] === null || r[m.metric] === undefined || !Number.isFinite(Number(r[m.metric]))) {
+        return true;
+      }
+      const ts = liveReadingTimestampFor(sensorId);
+      if (!ts) return false;
+      return (Date.now() - ts) >= OFFLINE_THRESHOLD_MS;
+    }
+    return (Date.now() - m.lastReportedAt) >= OFFLINE_THRESHOLD_MS || Boolean(m.stalled);
   }
 
   function updatedAgoText(ts) {
-    if (!ts) return 'Never';
+    if (!ts) return isSimulatedSource() ? 'Never' : 'Waiting for sensor data';
     const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
     if (sec < 60) return `Updated ${sec}s ago`;
     const min = Math.floor(sec / 60);
@@ -84,22 +103,32 @@
     return `Updated ${Math.floor(min / 60)}h ago`;
   }
 
+  function safeTargets(ghId) {
+    const t = typeof targets === 'function' ? targets(ghId) : null;
+    if (t && t.temp) return t;
+    return { temp: [18, 25], hum: [55, 75], co2: [600, 1200], wt: [18, 22], ph: [5.5, 6.5], ec: [0.8, 2.5], res: [40, 100] };
+  }
+
   function sensorStatusFor(sensorId) {
     if (isSensorOffline(sensorId)) return 'offline';
     const m = Sim.sensorMeta[sensorId];
     const r = readings(m.ghId);
-    const t = targets(m.ghId);
+    if (!r || r[m.metric] === null || r[m.metric] === undefined) return 'offline';
+    const t = safeTargets(m.ghId);
     return metricStatus(r[m.metric], t[m.metric]);
   }
 
   function overallGardenStatus() {
     if (Sim.pump.state === 'fault') return 'crit';
     let worst = 'ok';
+    let anyOnline = false;
     Object.keys(Sim.sensorMeta).forEach(id => {
       const st = sensorStatusFor(id);
+      if (st !== 'offline') anyOnline = true;
       if (st === 'crit') worst = 'crit';
-      else if ((st === 'warn' || st === 'offline') && worst === 'ok') worst = 'warn';
+      else if ((st === 'warn' || (st === 'offline' && isSimulatedSource())) && worst === 'ok') worst = 'warn';
     });
+    if (!isSimulatedSource() && !anyOnline) return 'nodata';
     return worst;
   }
 
@@ -111,10 +140,14 @@
     const m = Sim.sensorMeta[sensorId];
     if (!m) return { text: '—', status: 'offline', offline: true };
     if (isSensorOffline(sensorId)) {
-      return { text: 'Offline', raw: null, status: 'offline', offline: true };
+      return { text: isSimulatedSource() ? 'Offline' : 'No data', raw: null, status: 'offline', offline: true };
     }
     const def = sensorDef(m.metric);
-    const val = readings(m.ghId)[m.metric];
+    const r = readings(m.ghId);
+    const val = r ? r[m.metric] : null;
+    if (val === null || val === undefined || !Number.isFinite(Number(val))) {
+      return { text: 'No data', raw: null, status: 'offline', offline: true };
+    }
     const formatted = def ? num(val, def.dec) : String(val);
     const st = sensorStatusFor(sensorId);
     return { text: formatted, raw: val, unit: def?.unit || m.unit || '', status: st, offline: false };
@@ -146,8 +179,11 @@
 
     if (typeof ctrl.setTankLevel === 'function') {
       const resOffline = isSensorOffline('sensor-1');
-      if (!resOffline) {
-        ctrl.setTankLevel('tank-1', readings('gh-a').res);
+      const r = readings('gh-a');
+      if (!resOffline && r && r.res != null) {
+        ctrl.setTankLevel('tank-1', r.res);
+      } else {
+        ctrl.setTankLevel('tank-1', 0);
       }
     }
   }
@@ -176,7 +212,9 @@
       toast('Scheduled irrigation cycle completed.');
     }
 
-    // Subtle simulated drift every ~6 seconds on active gauges
+    if (!isSimulatedSource()) return;
+
+    // Subtle simulated drift every ~6 seconds on active gauges (Simulated Data mode only)
     const now = Date.now();
     if (now - Sim.lastTickAt >= 6000) {
       Sim.lastTickAt = now;
@@ -200,15 +238,23 @@
   }
 
   function updateLiveTimestampsOnly() {
-    const newestTs = Math.max(...Object.values(Sim.sensorMeta).map(s => s.lastReportedAt || 0));
+    const sim = isSimulatedSource();
+    const newestTs = sim
+      ? Math.max(...Object.values(Sim.sensorMeta).map(s => s.lastReportedAt || 0))
+      : Math.max(0, ...Object.keys(Sim.sensorMeta).map(id => liveReadingTimestampFor(id) || 0));
     const topAge = document.querySelector('[data-lg-top-age]');
-    if (topAge) topAge.textContent = updatedAgoText(newestTs);
+    if (topAge) topAge.textContent = updatedAgoText(newestTs || null);
 
     document.querySelectorAll('[data-lg-sensor-age]').forEach(el => {
       const sid = el.getAttribute('data-lg-sensor-age');
       const m = Sim.sensorMeta[sid];
       if (!m) return;
-      el.textContent = isSensorOffline(sid) ? 'Offline (10m+ no data)' : updatedAgoText(m.lastReportedAt);
+      if (!sim) {
+        const ts = liveReadingTimestampFor(sid);
+        el.textContent = isSensorOffline(sid) ? 'Waiting for sensor data' : updatedAgoText(ts);
+      } else {
+        el.textContent = isSensorOffline(sid) ? 'Offline (10m+ no data)' : updatedAgoText(m.lastReportedAt);
+      }
     });
 
     const pumpRem = document.querySelector('[data-lg-pump-remaining]');
@@ -397,12 +443,22 @@
       Sim.panelChart.destroy();
       Sim.panelChart = null;
     }
+    const wrap = document.getElementById('lgPanelChartWrap');
+    const pts = history(ghId, metricKey, '24h');
+    if (!pts.length) {
+      if (wrap) {
+        wrap.innerHTML = `<div class="empty" style="padding:20px 12px"><span class="chip-ico">${ic('trend')}</span><b>Waiting for sensor data</b><p class="small">No historical readings recorded yet.</p></div>`;
+      }
+      return;
+    }
+    if (wrap && !document.getElementById('lgPanelChart')) {
+      wrap.innerHTML = '<canvas id="lgPanelChart" role="img" aria-label="24 hour sensor history"></canvas>';
+    }
     const canvas = document.getElementById('lgPanelChart');
     if (!canvas || !window.Chart) return;
 
-    const pts = history(ghId, metricKey, '24h');
     const def = sensorDef(metricKey);
-    const t = targets(ghId)[metricKey];
+    const t = safeTargets(ghId)[metricKey];
     const th = { text: cssVar('--muted') || '#53645b', grid: cssVar('--line-2') || '#e8eeea' };
     const accent = cssVar('--accent') || '#0f9d69';
 
@@ -412,7 +468,7 @@
         labels: pts.map(p => new Date(p.at).toLocaleTimeString(undefined, { hour: 'numeric' })),
         datasets: [
           {
-            label: `${def.label} (${def.unit || 'val'}) · SIMULATED`,
+            label: `${def.label} (${def.unit || 'val'}) · ${isSimulatedSource() ? 'SIMULATED' : 'LIVE'}`,
             data: pts.map(p => p.v),
             borderColor: accent,
             backgroundColor: accent + '20',
@@ -472,49 +528,56 @@
     }
     drawer.classList.add('open');
 
-    const simPill = isSimulatedSource()
+    const sim = isSimulatedSource();
+    const simPill = sim
       ? '<span class="lg-sim-badge">SIMULATED</span>'
-      : '<span class="tag live">LIVE SENSOR</span>';
+      : '<span class="tag live">LIVE DATA</span>';
 
     let bodyHtml = '';
 
     if (comp.kind === 'bed') {
       const gh = ghById(comp.ghId);
-      const r = readings(comp.ghId);
-      const t = targets(comp.ghId);
+      const r = readings(comp.ghId) || {};
+      const t = safeTargets(comp.ghId);
       const sMeta = Sim.sensorMeta[comp.sensorId];
       const offline = isSensorOffline(comp.sensorId);
-      const tempSt = offline ? 'offline' : metricStatus(r.temp, t.temp);
-      const humSt = offline ? 'offline' : metricStatus(r.hum, t.hum);
-      const overallBedSt = offline ? 'mute' : (tempSt === 'crit' || humSt === 'crit') ? 'crit' : (tempSt === 'warn' || humSt === 'warn') ? 'warn' : 'ok';
-      const stLabel = offline ? 'Offline' : tempSt === 'ok' && humSt === 'ok' ? 'Optimal' : (overallBedSt === 'crit' ? 'Critical' : 'Attention');
+      const hasTemp = !offline && r.temp != null && Number.isFinite(Number(r.temp));
+      const hasHum = !offline && r.hum != null && Number.isFinite(Number(r.hum));
+      const hasEc = !offline && r.ec != null && Number.isFinite(Number(r.ec));
+      const hasPh = !offline && r.ph != null && Number.isFinite(Number(r.ph));
+      const tempSt = hasTemp ? metricStatus(r.temp, t.temp) : 'offline';
+      const humSt = hasHum ? metricStatus(r.hum, t.hum) : 'offline';
+      const overallBedSt = (!hasTemp && !hasHum) ? 'mute' : (tempSt === 'crit' || humSt === 'crit') ? 'crit' : (tempSt === 'warn' || humSt === 'warn') ? 'warn' : 'ok';
+      const stLabel = (!hasTemp && !hasHum) ? (sim ? 'Offline' : 'Waiting for data') : (overallBedSt === 'ok' ? 'Optimal' : overallBedSt === 'crit' ? 'Critical' : 'Attention');
+      const liveTs = sim ? sMeta.lastReportedAt : liveReadingTimestampFor(comp.sensorId);
 
       const associated = alertsForComponent(comp);
+      const ghLabel = gh?.name || (sim ? comp.ghId : 'Unassigned greenhouse');
       bodyHtml = `
         <div class="split" style="justify-content:space-between">
           <span class="badge b-${overallBedSt}">${stLabel}</span>
           ${simPill}
         </div>
-        <div class="small muted">${esc(comp.system)} · ${esc(comp.crop)} (${esc(gh.name)})</div>
+        <div class="small muted">${esc(comp.system)} · ${esc(comp.crop)} (${esc(ghLabel)})</div>
         <div class="lg-metric-grid">
-          <div class="lg-metric-box ${offline ? 'offline' : ''}">
+          <div class="lg-metric-box ${!hasTemp ? 'offline' : ''}">
             <span>Temperature</span>
-            <b style="color:var(--${offline ? 'muted' : tempSt === 'ok' ? 'fg' : tempSt})">${offline ? 'Offline' : `${num(r.temp, 1)} °C`}</b>
+            <b style="color:var(--${!hasTemp ? 'muted' : tempSt === 'ok' ? 'fg' : tempSt})">${hasTemp ? `${num(r.temp, 1)} °C` : '—'}</b>
             <span class="small">Target ${t.temp[0]}–${t.temp[1]} °C</span>
           </div>
-          <div class="lg-metric-box ${offline ? 'offline' : ''}">
+          <div class="lg-metric-box ${!hasHum ? 'offline' : ''}">
             <span>Humidity</span>
-            <b style="color:var(--${offline ? 'muted' : humSt === 'ok' ? 'fg' : humSt})">${offline ? 'Offline' : `${num(r.hum, 0)} %`}</b>
+            <b style="color:var(--${!hasHum ? 'muted' : humSt === 'ok' ? 'fg' : humSt})">${hasHum ? `${num(r.hum, 0)} %` : '—'}</b>
             <span class="small">Target ${t.hum[0]}–${t.hum[1]} %</span>
           </div>
           <div class="lg-metric-box">
             <span>Sensor (${esc(comp.sensorId)})</span>
-            <b style="font-size:.95rem">${offline ? 'Offline' : stLabel}</b>
-            <span class="small" data-lg-sensor-age="${comp.sensorId}">${offline ? 'No report >=10m' : updatedAgoText(sMeta.lastReportedAt)}</span>
+            <b style="font-size:.95rem">${stLabel}</b>
+            <span class="small" data-lg-sensor-age="${comp.sensorId}">${offline ? (sim ? 'No report >=10m' : 'Waiting for sensor data') : updatedAgoText(liveTs)}</span>
           </div>
           <div class="lg-metric-box">
             <span>EC / pH</span>
-            <b style="font-size:.95rem">${offline ? '—' : `${num(r.ec, 2)} · ${num(r.ph, 2)}`}</b>
+            <b style="font-size:.95rem">${(hasEc || hasPh) ? `${hasEc ? num(r.ec, 2) : '—'} · ${hasPh ? num(r.ph, 2) : '—'}` : '—'}</b>
             <span class="small">mS/cm · pH</span>
           </div>
         </div>
@@ -527,7 +590,7 @@
               <button type="button" data-lg-chart-metric="ph" aria-pressed="${Sim.chartMetric === 'ph'}">pH</button>
             </div>
           </div>
-          <div class="chart-box"><canvas id="lgPanelChart" role="img" aria-label="24 hour sensor history"></canvas></div>
+          <div class="chart-box" id="lgPanelChartWrap"><canvas id="lgPanelChart" role="img" aria-label="24 hour sensor history"></canvas></div>
         </div>
         <div>
           <h3 style="margin-bottom:6px">Active Alerts (${associated.length})</h3>
@@ -536,28 +599,30 @@
       `;
     } else if (comp.kind === 'tank') {
       const offline = isSensorOffline('sensor-1');
-      const r = readings('gh-a');
-      const pct = clamp(Math.round(r.res), 0, 100);
+      const r = readings('gh-a') || {};
+      const hasRes = !offline && r.res != null && Number.isFinite(Number(r.res));
+      const pct = hasRes ? clamp(Math.round(r.res), 0, 100) : 0;
       const liters = Math.round((pct / 100) * comp.capacityLiters);
       const fillCls = pct < 25 ? 'crit' : pct < 45 ? 'warn' : '';
       const sMeta = Sim.sensorMeta['sensor-1'];
+      const liveTs = sim ? sMeta.lastReportedAt : liveReadingTimestampFor('sensor-1');
       const associated = alertsForComponent(comp);
       bodyHtml = `
         <div class="split" style="justify-content:space-between">
-          <span class="badge b-${offline ? 'mute' : pct < 25 ? 'crit' : pct < 45 ? 'warn' : 'ok'}">${offline ? 'Offline' : `${pct}% Full`}</span>
+          <span class="badge b-${!hasRes ? 'mute' : pct < 25 ? 'crit' : pct < 45 ? 'warn' : 'ok'}">${!hasRes ? (sim ? 'Offline' : 'Waiting for data') : `${pct}% Full`}</span>
           ${simPill}
         </div>
         <div class="lg-tank-gauge">
           <div class="split" style="justify-content:space-between">
             <b>Water Level</b>
-            <span class="mono" style="font-weight:700">${offline ? 'Offline (no current reading)' : `${pct}% (${num(liters)} / ${num(comp.capacityLiters)} L)`}</span>
+            <span class="mono" style="font-weight:700">${!hasRes ? (sim ? 'Offline (no current reading)' : 'Waiting for sensor data') : `${pct}% (${num(liters)} / ${num(comp.capacityLiters)} L)`}</span>
           </div>
-          <div class="lg-tank-bar" role="progressbar" aria-valuenow="${offline ? 0 : pct}" aria-valuemin="0" aria-valuemax="100">
-            <div class="lg-tank-fill ${fillCls}" style="width:${offline ? 0 : pct}%"></div>
+          <div class="lg-tank-bar" role="progressbar" aria-valuenow="${hasRes ? pct : 0}" aria-valuemin="0" aria-valuemax="100">
+            <div class="lg-tank-fill ${fillCls}" style="width:${hasRes ? pct : 0}%"></div>
           </div>
           <div class="split" style="justify-content:space-between;font-size:.75rem;color:var(--muted)">
-            <span data-lg-sensor-age="sensor-1">${offline ? 'Offline (>=10m)' : updatedAgoText(sMeta.lastReportedAt)}</span>
-            <span>EC ${offline ? '—' : num(r.ec, 2) + ' mS/cm'}</span>
+            <span data-lg-sensor-age="sensor-1">${!hasRes ? (sim ? 'Offline (>=10m)' : 'Waiting for sensor data') : updatedAgoText(liveTs)}</span>
+            <span>EC ${r.ec != null ? num(r.ec, 2) + ' mS/cm' : '—'}</span>
           </div>
         </div>
         <div>
@@ -616,33 +681,36 @@
       const m = Sim.sensorMeta[comp.id];
       const d = formatSensorDisplay(comp.id);
       const secDef = sensorDef(comp.secMetric);
-      const secVal = d.offline ? 'Offline' : `${num(readings(comp.ghId)[comp.secMetric], secDef.dec)} ${secDef.unit}`.trim();
+      const r = readings(comp.ghId);
+      const secHasVal = !d.offline && r && r[comp.secMetric] != null && Number.isFinite(Number(r[comp.secMetric]));
+      const secVal = secHasVal ? `${num(r[comp.secMetric], secDef.dec)} ${secDef.unit}`.trim() : '—';
+      const liveTs = sim ? m.lastReportedAt : liveReadingTimestampFor(comp.id);
       const associated = alertsForComponent(comp);
       bodyHtml = `
         <div class="split" style="justify-content:space-between">
-          <span class="badge b-${d.offline ? 'mute' : d.status}">${d.offline ? 'Offline' : d.status === 'ok' ? 'Normal' : d.status === 'warn' ? 'Warning' : 'Critical'}</span>
+          <span class="badge b-${d.offline ? 'mute' : d.status}">${d.offline ? (sim ? 'Offline' : 'Waiting for data') : d.status === 'ok' ? 'Normal' : d.status === 'warn' ? 'Warning' : 'Critical'}</span>
           ${simPill}
         </div>
         <div class="lg-metric-grid">
           <div class="lg-metric-box ${d.offline ? 'offline' : ''}">
             <span>${esc(sensorDef(comp.metric).label)}</span>
-            <b>${d.offline ? 'Offline' : `${d.text} ${d.unit}`.trim()}</b>
-            <span class="small" data-lg-sensor-age="${comp.id}">${d.offline ? 'Offline (>=10m)' : updatedAgoText(m.lastReportedAt)}</span>
+            <b>${d.offline ? '—' : `${d.text} ${d.unit}`.trim()}</b>
+            <span class="small" data-lg-sensor-age="${comp.id}">${d.offline ? (sim ? 'Offline (>=10m)' : 'Waiting for sensor data') : updatedAgoText(liveTs)}</span>
           </div>
-          <div class="lg-metric-box ${d.offline ? 'offline' : ''}">
+          <div class="lg-metric-box ${!secHasVal ? 'offline' : ''}">
             <span>${esc(secDef.label)}</span>
             <b>${secVal}</b>
             <span class="small">Secondary probe</span>
           </div>
         </div>
-        <div class="toolbar">
+        ${sim ? `<div class="toolbar">
           <button type="button" class="btn sm" data-lg-toggle-stall="${comp.id}">
             ${m.stalled ? 'Resume Simulated Feed' : 'Simulate 10m+ Offline'}
           </button>
-        </div>
+        </div>` : ''}
         <div>
           <h3 style="margin-bottom:6px">24h History (${esc(sensorDef(comp.metric).label)})</h3>
-          <div class="chart-box"><canvas id="lgPanelChart" role="img" aria-label="24 hour sensor history"></canvas></div>
+          <div class="chart-box" id="lgPanelChartWrap"><canvas id="lgPanelChart" role="img" aria-label="24 hour sensor history"></canvas></div>
         </div>
         <div>
           <h3 style="margin-bottom:6px">Open Alerts (${associated.length})</h3>
@@ -695,20 +763,22 @@
   function renderSensorStrip() {
     const strip = document.getElementById('lgSensorStrip');
     if (!strip) return;
+    const sim = isSimulatedSource();
     const cards = ['sensor-1', 'sensor-2', 'sensor-3', 'sensor-4'].map(id => {
       const comp = compById(id);
       const d = formatSensorDisplay(id);
       const m = Sim.sensorMeta[id];
       const active = Sim.selectedId === id ? 'active' : '';
       const offCls = d.offline ? 'is-offline' : '';
+      const ts = sim ? m.lastReportedAt : liveReadingTimestampFor(id);
       return `
         <button type="button" class="lg-sensor-mini ${active} ${offCls}" data-lg-select="${id}">
           <div>
             <div class="small muted">${esc(comp.label)}</div>
-            <b class="mono" style="font-size:1.05rem">${d.offline ? 'Offline' : `${d.text} ${d.unit}`.trim()}</b>
-            <div class="small muted" data-lg-sensor-age="${id}">${d.offline ? 'No report (>=10m)' : updatedAgoText(m.lastReportedAt)}</div>
+            <b class="mono" style="font-size:1.05rem">${d.offline ? (sim ? 'Offline' : '—') : `${d.text} ${d.unit}`.trim()}</b>
+            <div class="small muted" data-lg-sensor-age="${id}">${d.offline ? (sim ? 'No report (>=10m)' : 'Waiting for sensor data') : updatedAgoText(ts)}</div>
           </div>
-          <span class="badge b-${d.offline ? 'mute' : d.status}">${d.offline ? 'Offline' : d.status === 'ok' ? 'OK' : d.status === 'warn' ? 'Warn' : 'Crit'}</span>
+          <span class="badge b-${d.offline ? 'mute' : d.status}">${d.offline ? (sim ? 'Offline' : 'No data') : d.status === 'ok' ? 'OK' : d.status === 'warn' ? 'Warn' : 'Crit'}</span>
         </button>
       `;
     }).join('');
@@ -719,9 +789,12 @@
     const row = document.getElementById('lgTopStatus');
     if (!row) return;
     const st = overallGardenStatus();
-    const newest = Math.max(...Object.values(Sim.sensorMeta).map(s => s.lastReportedAt || 0));
-    const stText = st === 'ok' ? 'Optimal' : st === 'warn' ? 'Attention' : 'Critical';
     const sim = isSimulatedSource();
+    const newest = sim
+      ? Math.max(...Object.values(Sim.sensorMeta).map(s => s.lastReportedAt || 0))
+      : Math.max(0, ...Object.keys(Sim.sensorMeta).map(id => liveReadingTimestampFor(id) || 0));
+    const stText = st === 'ok' ? 'Optimal' : st === 'warn' ? 'Attention' : st === 'crit' ? 'Critical' : 'Waiting for sensors';
+    const stCls = st === 'nodata' ? 'mute' : st;
     const pumpBadge = Sim.pump.state === 'running'
       ? `Pump: Running (${num(Sim.pump.flowLpm, 1)} L/min)`
       : Sim.pump.state === 'starting'
@@ -731,11 +804,11 @@
           : 'Pump: Off';
 
     row.innerHTML = `
-      <span class="badge b-${st}">Garden: ${stText}</span>
-      <span class="lg-conn-pill"><span class="lg-pulse-dot" style="background:var(--${sim ? 'info' : 'ok'})"></span>${sim ? 'Simulator Feed' : 'Live Gateway'}</span>
-      <span class="lg-sim-badge">${sim ? 'SIMULATED · Demo sensors (not real hardware)' : 'LIVE HARDWARE'}</span>
+      <span class="badge b-${stCls}">Garden: ${stText}</span>
+      <span class="lg-conn-pill"><span class="lg-pulse-dot" style="background:var(--${sim ? 'info' : newest ? 'ok' : 'muted'})"></span>${sim ? 'Simulator Feed' : newest ? 'Live Feed' : 'Waiting for Sensor Data'}</span>
+      <span class="${sim ? 'lg-sim-badge' : 'tag live'}">${sim ? 'SIMULATED · Demo sensors (not real hardware)' : 'LIVE DATA'}</span>
       <span class="tag">${esc(pumpBadge)}</span>
-      <span class="tag" data-lg-top-age>${updatedAgoText(newest)}</span>
+      <span class="tag" data-lg-top-age>${updatedAgoText(newest || null)}</span>
     `;
 
     // Sync view mode & active quick chips
@@ -762,13 +835,17 @@
           if (c.kind === 'pump') summary = `State: ${Sim.pump.state} · ${num(Sim.pump.flowLpm, 1)} L/min`;
           else if (c.kind === 'tank') {
             const off = isSensorOffline('sensor-1');
-            summary = off ? 'Offline' : `${num(readings('gh-a').res, 0)}% level`;
+            const r = readings('gh-a');
+            summary = (off || !r || r.res == null) ? (sim ? 'Offline' : 'Waiting for sensor data') : `${num(r.res, 0)}% level`;
           } else if (c.kind === 'sensor') {
             const d = formatSensorDisplay(c.id);
-            summary = d.offline ? 'Offline' : `${d.text} ${d.unit}`.trim();
+            summary = d.offline ? (sim ? 'Offline' : 'Waiting for sensor data') : `${d.text} ${d.unit}`.trim();
           } else {
             const off = isSensorOffline(c.sensorId);
-            summary = off ? 'Offline' : `${num(readings(c.ghId).temp, 1)} °C · ${num(readings(c.ghId).hum, 0)}% RH`;
+            const r = readings(c.ghId);
+            summary = (off || !r || (r.temp == null && r.hum == null))
+              ? (sim ? 'Offline' : 'Waiting for sensor data')
+              : `${r.temp != null ? num(r.temp, 1) + ' °C' : '—'} · ${r.hum != null ? num(r.hum, 0) + '% RH' : '—'}`;
           }
           return `
             <button type="button" class="lg-list-card ${isSel}" data-lg-select="${esc(c.id)}">
@@ -885,11 +962,12 @@
     });
 
     const quickSelectIds = ['bed-1', 'bed-2', 'channel-bed-1', 'channel-bed-2', 'tower-1', 'tower-5', 'tank-1', 'pump-1'];
+    const farmTitle = typeof activeFarmName === 'function' ? activeFarmName() : 'Farm';
     return `
       <div class="lg-topband">
         <div>
           <h1>Live Garden</h1>
-          <p class="muted" style="margin-top:2px">Interactive 3D digital twin of the Hydrovest Tech garden.</p>
+          <p class="muted" style="margin-top:2px">Interactive 3D digital twin of ${esc(farmTitle)}.</p>
         </div>
         <div class="toolbar">
           <div class="seg" role="group" aria-label="Display mode">
@@ -1003,11 +1081,33 @@
     }
   });
 
+  function syncDataMode() {
+    if (Sim.startPrimeTimer) {
+      clearTimeout(Sim.startPrimeTimer);
+      Sim.startPrimeTimer = null;
+    }
+    Sim.pump.state = 'off';
+    Sim.pump.flowLpm = 0;
+    Sim.pump.startedAt = null;
+    Sim.pump.stopAt = null;
+    Sim.pump.lifecycle = 'Idle · Pump off';
+    if (isSimulatedSource()) {
+      const now = Date.now();
+      Object.values(Sim.sensorMeta).forEach((m, idx) => {
+        m.stalled = false;
+        m.lastReportedAt = now - (idx + 2) * 1000;
+      });
+    }
+    pushStateToScene();
+    updateInPlace();
+  }
+
   window.LiveGardenUI = {
     renderView,
     updateInPlace,
     dispose,
     selectComponent,
+    syncDataMode,
     isActive: () => Boolean(document.getElementById('liveGardenStage')),
   };
 })();

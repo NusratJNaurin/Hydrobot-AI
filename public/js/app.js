@@ -97,8 +97,8 @@ const ICONS = {
 };
 const ic = (n, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${(ICONS[n] || '').split('|').map(d => `<path d="${d}"/>`).join('')}</svg>`;
 
-/* ================= Demo reference data ================= */
-const PEOPLE = [
+/* ================= Reference presets & dynamic catalog ================= */
+const DEFAULT_PEOPLE = [
   { id: 'p1', name: 'Diego Alvarez', role: 'Farm Manager' },
   { id: 'p2', name: 'Maria Santos', role: 'Farm Worker' },
   { id: 'p3', name: 'Kwame Mensah', role: 'Farm Worker' },
@@ -110,21 +110,24 @@ const ROLES = {
   'Farm Manager': { name: 'Diego Alvarez', perms: ['batches', 'targets', 'tasks', 'inventory', 'sales', 'commands', 'harvest', 'financeView'] },
   'Farm Worker': { name: 'Maria Santos', perms: ['harvest'] },
 };
-const CROPS = {
+const DEFAULT_CROPS = {
   Lettuce: { label: 'Butterhead Lettuce', cycle: 42, price: 6.0, ypp: 0.18, continuous: false, ph: [5.6, 6.2], ec: { Germination: [0.4, 0.8], Seedling: [0.6, 1.0], Vegetative: [0.8, 1.4], Ready: [0.8, 1.2] } },
   Tomato: { label: 'Cherry Tomato', cycle: 80, price: 5.2, ypp: 0.16, continuous: true, ph: [5.8, 6.5], ec: { Germination: [0.8, 1.2], Seedling: [1.2, 1.8], Vegetative: [2.0, 2.8], Flowering: [2.4, 3.2], Fruiting: [2.6, 3.5], Ready: [2.6, 3.5] } },
   Basil: { label: 'Genovese Basil', cycle: 32, price: 22.0, ypp: 0.08, continuous: false, ph: [5.5, 6.5], ec: { Germination: [0.4, 0.8], Seedling: [0.6, 1.0], Vegetative: [1.0, 1.6], Ready: [1.0, 1.6] } },
   Strawberry: { label: 'Albion Strawberry', cycle: 75, price: 11.5, ypp: 0.045, continuous: true, ph: [5.5, 6.2], ec: { Seedling: [0.8, 1.0], Vegetative: [1.0, 1.4], Flowering: [1.2, 1.6], Fruiting: [1.4, 1.8], Ready: [1.4, 1.8] } },
 };
+const CROPS = DEFAULT_CROPS;
+const CROP_PALETTE = ['--c1', '--c2', '--c3', '--c4', '--c5'];
 const CROP_COLOR = { Lettuce: '--c1', Tomato: '--c2', Basil: '--c3', Strawberry: '--c4' };
+const cropColorVar = key => CROP_COLOR[key] || CROP_PALETTE[Math.abs(hash(String(key || 'crop'))) % CROP_PALETTE.length];
 const STAGES = ['Germination', 'Seedling', 'Vegetative', 'Flowering', 'Fruiting', 'Ready', 'Harvested'];
-const GH = [
-  { id: 'gh-a', code: 'A', name: 'Greenhouse A', system: 'NFT channels', area: 420, zones: ['A1', 'A2', 'A3'], main: 'Lettuce' },
-  { id: 'gh-b', code: 'B', name: 'Greenhouse B', system: 'Dutch buckets', area: 380, zones: ['B1', 'B2'], main: 'Tomato' },
-  { id: 'gh-c', code: 'C', name: 'Greenhouse C', system: 'Deep water culture', area: 260, zones: ['C1', 'C2'], main: 'Basil' },
-  { id: 'gh-d', code: 'D', name: 'Greenhouse D', system: 'Vertical NFT towers', area: 300, zones: ['D1', 'D2'], main: 'Strawberry' },
+const DEFAULT_GH = [
+  { id: 'gh-a', code: 'A', name: 'Greenhouse A', system: 'NFT channels', area: 420, reservoirLiters: 1800, zones: ['A1', 'A2', 'A3'], main: 'Lettuce' },
+  { id: 'gh-b', code: 'B', name: 'Greenhouse B', system: 'Dutch buckets', area: 380, reservoirLiters: 1800, zones: ['B1', 'B2'], main: 'Tomato' },
+  { id: 'gh-c', code: 'C', name: 'Greenhouse C', system: 'Deep water culture', area: 260, reservoirLiters: 1200, zones: ['C1', 'C2'], main: 'Basil' },
+  { id: 'gh-d', code: 'D', name: 'Greenhouse D', system: 'Vertical NFT towers', area: 300, reservoirLiters: 1500, zones: ['D1', 'D2'], main: 'Strawberry' },
 ];
-const ghById = id => GH.find(g => g.id === id);
+const GH = DEFAULT_GH;
 const SENSORS = [
   { k: 'temp', label: 'Air temperature', unit: '°C', dec: 1, icon: 'thermo', model: 'SHT45 probe' },
   { k: 'hum', label: 'Humidity', unit: '%', dec: 0, icon: 'drop', model: 'SHT45 probe' },
@@ -135,6 +138,7 @@ const SENSORS = [
   { k: 'res', label: 'Reservoir level', unit: '%', dec: 0, icon: 'box', model: 'Ultrasonic level' },
 ];
 const sensorDef = k => SENSORS.find(s => s.k === k);
+const FALLBACK_TARGETS = { temp: [18, 25], hum: [55, 75], co2: [600, 1200], wt: [18, 22], ph: [5.5, 6.5], ec: [0.8, 2.5], res: [40, 100] };
 const DEFAULT_TARGETS = {
   'gh-a': { temp: [18, 24], hum: [55, 75], co2: [600, 1200], wt: [18, 22], ph: [5.6, 6.2], ec: [0.8, 1.4], res: [40, 100] },
   'gh-b': { temp: [20, 27], hum: [55, 75], co2: [600, 1200], wt: [18, 23], ph: [5.8, 6.5], ec: [2.4, 3.5], res: [40, 100] },
@@ -148,6 +152,13 @@ const CURRENT = {
   'gh-d': { temp: 21.0, hum: 68, co2: 760, wt: 19.1, ph: 6.41, ec: 1.36, res: 18 },
 };
 const READ_AT = { 'gh-a': 2, 'gh-b': 1, 'gh-c': 3, 'gh-d': 2 }; // minutes since last demo reading
+const INITIAL_CURRENT = JSON.parse(JSON.stringify(CURRENT));
+function restoreSimulatedCurrent() {
+  Object.keys(INITIAL_CURRENT).forEach(k => {
+    CURRENT[k] = { ...INITIAL_CURRENT[k] };
+  });
+}
+const isLiveMode = () => Boolean(window.HydrobotData && window.HydrobotData.isLive());
 const DEVICES = [
   { k: 'pump', label: 'Irrigation pump', action: 'Start a 5-minute irrigation cycle', icon: 'drop' },
   { k: 'fans', label: 'Exhaust fans', action: 'Run exhaust fans at 80% for 20 minutes', icon: 'wind' },
@@ -200,7 +211,8 @@ function demoInventory() {
     i('I-12', 'EC meter, handheld', 'Equipment', 3, 'units', 1, 'HydroTech Parts', 64),
   ];
 }
-const CUSTOMERS = ['FreshMart Grocers', 'Bistro Verde', 'Harbor Street Market', 'GreenBox Meal Kits', 'City Food Co-op'];
+const DEFAULT_CUSTOMERS = ['FreshMart Grocers', 'Bistro Verde', 'Harbor Street Market', 'GreenBox Meal Kits', 'City Food Co-op'];
+const CUSTOMERS = DEFAULT_CUSTOMERS;
 function demoHarvests() {
   const r = rng(42), out = [];
   const plan = [['Lettuce', 'gh-a', 14, 252, ['A1', 'A2', 'A3']], ['Basil', 'gh-c', 14, 70, ['C1', 'C2']], ['Tomato', 'gh-b', 7, 50, ['B1', 'B2']], ['Strawberry', 'gh-d', 7, 27, ['D1', 'D2']]];
@@ -223,10 +235,10 @@ function demoOrders(harvests) {
     const kg = Math.round(h.actualKg * (0.93 + r() * 0.05));
     const gradeAdj = h.grade === 'A' ? 1 : h.grade === 'B' ? 0.9 : 0.75;
     const date = iso(parseD(h.date).getTime() + DAY);
-    out.push({ id: 'SO-' + (2001 + i), customer: CUSTOMERS[i % CUSTOMERS.length], crop: h.crop, kg, pricePerKg: +(CROPS[h.crop].price * gradeAdj).toFixed(2), date, status: 'Delivered', harvestId: h.id, delivery: { status: 'Delivered', vehicle: i % 2 ? 'Van 2 (refrigerated)' : 'Van 1 (refrigerated)', window: '07:00–10:00' }, demo: true });
+    out.push({ id: 'SO-' + (2001 + i), customer: DEFAULT_CUSTOMERS[i % DEFAULT_CUSTOMERS.length], crop: h.crop, kg, pricePerKg: +(DEFAULT_CROPS[h.crop].price * gradeAdj).toFixed(2), date, status: 'Delivered', harvestId: h.id, delivery: { status: 'Delivered', vehicle: i % 2 ? 'Van 2 (refrigerated)' : 'Van 1 (refrigerated)', window: '07:00–10:00' }, demo: true });
   });
   const up = [['FreshMart Grocers', 'Basil', 30, 2, 'Packed', 'Out for delivery'], ['Bistro Verde', 'Tomato', 18, 3, 'Confirmed', 'Scheduled'], ['GreenBox Meal Kits', 'Lettuce', 160, 4, 'Confirmed', 'Scheduled'], ['City Food Co-op', 'Strawberry', 20, 5, 'Confirmed', 'Scheduled'], ['Harbor Street Market', 'Lettuce', 60, 5, 'Draft', 'Not scheduled']];
-  up.forEach(([customer, crop, kg, d, status, ds], i) => out.push({ id: 'SO-' + (2101 + i), customer, crop, kg, pricePerKg: CROPS[crop].price, date: dOff(d), status, delivery: { status: ds, vehicle: ds === 'Not scheduled' ? '' : i % 2 ? 'Van 2 (refrigerated)' : 'Van 1 (refrigerated)', window: '07:00–10:00' }, demo: true }));
+  up.forEach(([customer, crop, kg, d, status, ds], i) => out.push({ id: 'SO-' + (2101 + i), customer, crop, kg, pricePerKg: DEFAULT_CROPS[crop].price, date: dOff(d), status, delivery: { status: ds, vehicle: ds === 'Not scheduled' ? '' : i % 2 ? 'Van 2 (refrigerated)' : 'Van 1 (refrigerated)', window: '07:00–10:00' }, demo: true }));
   return out;
 }
 function demoExpenses() {
@@ -248,6 +260,10 @@ function resourceSeries(days) {
 }
 const DEMO = {};
 function buildDemo() {
+  DEMO.farm = [{ id: 'meta', name: 'Riverside Hydro Farm', location: 'Valley Sector A', demo: true }];
+  DEMO.greenhouses = DEFAULT_GH.map(g => ({ ...g, demo: true }));
+  DEMO.team = DEFAULT_PEOPLE.map(p => ({ ...p, demo: true }));
+  DEMO.crops = Object.entries(DEFAULT_CROPS).map(([id, c]) => ({ id, ...c, demo: true }));
   DEMO.batches = demoBatches(); DEMO.tasks = demoTasks(); DEMO.inventory = demoInventory();
   DEMO.harvests = demoHarvests(); DEMO.orders = demoOrders(DEMO.harvests); DEMO.expenses = demoExpenses();
   DEMO.movements = [
@@ -259,65 +275,365 @@ function buildDemo() {
   DEMO.targets = []; DEMO.alerts = []; DEMO.commands = []; DEMO.readings = [];
 }
 
-/* ================= Storage: shared database with local fallback ================= */
-const COLS = ['batches', 'tasks', 'inventory', 'movements', 'harvests', 'orders', 'expenses', 'targets', 'alerts', 'commands', 'readings'];
+/* ================= Storage: backend API + shared database + cross-tab real-time sync ================= */
+const COLS = ['farm', 'greenhouses', 'team', 'crops', 'batches', 'tasks', 'inventory', 'movements', 'harvests', 'orders', 'expenses', 'targets', 'alerts', 'commands', 'readings'];
 const LS_KEY = 'hydrobot.records.v1';
+const LS_KEY_LIVE = 'hydrobot.live.records.v1';
+const SYNC_CHANNEL = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('hydrobot_sync_v1') : null;
 const Store = {
-  mode: 'loading', db: null, data: {}, error: null,
+  mode: 'loading',
+  db: null,
+  simData: {},
+  liveData: {},
+  rev: { simulated: -1, live: -1 },
+  syncError: null,
+  error: null,
+  pollTimer: null,
+  get data() { return isLiveMode() ? this.liveData : this.simData; },
+  scopeFarmId() {
+    const raw = (typeof AuthState !== 'undefined' && AuthState.currentFarmId) ? AuthState.currentFarmId : (ui.farm || 'riverside');
+    const clean = String(raw || 'riverside').trim();
+    return /^[A-Za-z0-9_-]{1,64}$/.test(clean) ? clean : 'riverside';
+  },
+  authHeaders(extra = {}) {
+    const h = { ...extra };
+    if (typeof AuthState !== 'undefined' && !AuthState.isDemoAuth && AuthState.session?.access_token) {
+      h.Authorization = `Bearer ${AuthState.session.access_token}`;
+    }
+    return h;
+  },
   async init() {
-    COLS.forEach(c => this.data[c] = {});
+    COLS.forEach(c => { this.simData[c] = {}; this.liveData[c] = {}; });
+    this.loadLocal();
+    this.setupSyncListeners();
+
     let db = null;
     try { if (window.claude && typeof claude.use === 'function') db = await Promise.race([claude.use('db'), sleep(8000).then(() => null)]); } catch (e) { db = null; }
-    if (!db) { this.mode = 'local'; this.loadLocal(); return; }
-    this.db = db; this.mode = 'db';
-    await new Promise(resolve => {
-      let pending = COLS.length, done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-      const timer = setTimeout(() => { this.error = 'The farm database is slow to respond. Showing what has loaded so far.'; finish(); }, 10000);
-      COLS.forEach(col => {
-        let first = true;
-        db.collection(col).onSnapshot(snap => {
-          const m = {}; snap.docs.forEach(d => { m[d.id] = d.data(); });
-          this.data[col] = m;
-          if (first) { first = false; if (--pending === 0) { clearTimeout(timer); finish(); } }
-          else scheduleRender();
-        }, err => {
-          this.error = 'Lost connection to the farm database (' + err.code + '). Changes may not save.';
-          if (first) { first = false; if (--pending === 0) { clearTimeout(timer); finish(); } }
-          scheduleRender();
+    if (db) {
+      this.db = db; this.mode = 'db';
+      await new Promise(resolve => {
+        let pending = COLS.length, done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        const timer = setTimeout(() => { this.error = 'The farm database is slow to respond. Showing what has loaded so far.'; finish(); }, 10000);
+        COLS.forEach(col => {
+          let first = true;
+          db.collection(col).onSnapshot(snap => {
+            const m = {}; snap.docs.forEach(d => { m[d.id] = d.data(); });
+            this.simData[col] = m;
+            if (first) { first = false; if (--pending === 0) { clearTimeout(timer); finish(); } }
+            else scheduleRender();
+          }, err => {
+            this.error = 'Lost connection to the farm database (' + err.code + '). Changes may not save.';
+            if (first) { first = false; if (--pending === 0) { clearTimeout(timer); finish(); } }
+            scheduleRender();
+          });
         });
       });
+      return;
+    }
+
+    const loadedBackend = await this.loadFromBackend();
+    this.mode = loadedBackend ? 'backend' : 'local';
+    if (loadedBackend) {
+      this.startPolling();
+    }
+  },
+  setupSyncListeners() {
+    if (this._listenersWired) return;
+    this._listenersWired = true;
+    window.addEventListener('storage', e => {
+      if (e.key === LS_KEY || e.key === LS_KEY_LIVE || e.key === 'hydrobot.dataMode.v1' || e.key === 'hydrobot.live.telemetry.v1') {
+        this.loadLocal();
+        if (window.HydrobotData && e.key === 'hydrobot.live.telemetry.v1') {
+          try {
+            const parsed = JSON.parse(e.newValue || '{}');
+            window.HydrobotData.hydrateLiveData(parsed);
+          } catch {}
+        }
+        window.LiveGardenUI?.updateInPlace?.();
+        scheduleRender();
+      }
     });
+    if (SYNC_CHANNEL) {
+      SYNC_CHANNEL.onmessage = ev => {
+        const msg = ev?.data;
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.type === 'state_changed') {
+          this.loadLocal();
+          if (this.mode === 'backend') this.syncIncremental();
+          window.LiveGardenUI?.updateInPlace?.();
+          scheduleRender();
+        } else if (msg.type === 'mode_changed' && window.HydrobotData) {
+          if (window.HydrobotData.getMode() !== msg.mode) {
+            window.HydrobotData.setMode(msg.mode);
+            window.LiveGardenUI?.syncDataMode?.();
+            syncDataModeUI();
+            scheduleRender();
+          }
+        }
+      };
+    }
+    if (window.HydrobotData) {
+      window.HydrobotData.subscribe((mode, reason) => {
+        if (reason !== 'hydrate') {
+          window.LiveGardenUI?.updateInPlace?.();
+          scheduleRender();
+        }
+      });
+    }
+  },
+  async fetchModeState(mode, since = -1) {
+    const farmId = encodeURIComponent(this.scopeFarmId());
+    const qs = `mode=${encodeURIComponent(mode)}&farmId=${farmId}${since >= 0 ? `&since=${since}` : ''}`;
+    const res = await fetch(`/api/farm-state?${qs}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: this.authHeaders(),
+    });
+    if (res.status === 404 || res.status === 405) return { unavailable: true };
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = new Error(data?.error || `Sync failed (${res.status}).`);
+      err.status = res.status;
+      err.code = data?.code || 'sync_error';
+      throw err;
+    }
+    return data;
+  },
+  hasLocalRecords(map) {
+    return COLS.some(c => map?.[c] && Object.keys(map[c]).length > 0);
+  },
+  async loadFromBackend() {
+    try {
+      const [simRes, liveRes] = await Promise.all([
+        this.fetchModeState('simulated'),
+        this.fetchModeState('live'),
+      ]);
+      if (simRes?.unavailable || liveRes?.unavailable) {
+        this.syncError = null;
+        return false;
+      }
+
+      if (simRes && !simRes.unchanged) {
+        if (simRes.revision === 0 && this.hasLocalRecords(this.simData)) {
+          await this.pushMergeToBackend('simulated', this.simData);
+        } else {
+          COLS.forEach(c => { this.simData[c] = simRes.collections?.[c] || {}; });
+          this.rev.simulated = Number(simRes.revision) || 0;
+        }
+      }
+
+      if (liveRes && !liveRes.unchanged) {
+        if (liveRes.revision === 0 && this.hasLocalRecords(this.liveData)) {
+          await this.pushMergeToBackend('live', this.liveData);
+        } else {
+          COLS.forEach(c => { this.liveData[c] = liveRes.collections?.[c] || {}; });
+          this.rev.live = Number(liveRes.revision) || 0;
+        }
+        if (window.HydrobotData) {
+          window.HydrobotData.hydrateLiveData({
+            telemetry: liveRes.telemetry || {},
+            telemetryHistory: liveRes.telemetryHistory || {},
+            resourceSeries: liveRes.resourceSeries || [],
+          });
+        }
+      }
+
+      this.syncError = null;
+      this.error = null;
+      this.saveLocalSafe();
+      return true;
+    } catch (e) {
+      if (e?.status === 401) {
+        this.syncError = null;
+        return false;
+      }
+      console.warn('Backend state load failed, retaining cached state:', e);
+      this.syncError = e?.message || 'Unable to connect to farm backend. Changes may not sync across devices.';
+      return false;
+    }
+  },
+  async pushMergeToBackend(mode, collections) {
+    const res = await fetch('/api/farm-state', {
+      method: 'PUT',
+      headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ mode, farmId: this.scopeFarmId(), op: 'merge', collections }),
+    });
+    const out = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(out?.error || 'Failed to sync state.');
+    this.rev[mode] = Number(out?.revision) || this.rev[mode];
+    return out;
+  },
+  async syncIncremental() {
+    if (this.mode !== 'backend' || document.hidden) return;
+    if (typeof AuthState !== 'undefined' && !AuthState.isDemoAuth && !AuthState.session) return;
+    const activeMode = isLiveMode() ? 'live' : 'simulated';
+    try {
+      const res = await this.fetchModeState(activeMode, this.rev[activeMode]);
+      if (!res || res.unavailable || res.unchanged) return;
+      const target = activeMode === 'live' ? this.liveData : this.simData;
+      COLS.forEach(c => { target[c] = res.collections?.[c] || {}; });
+      this.rev[activeMode] = Number(res.revision) || this.rev[activeMode];
+      if (activeMode === 'live' && window.HydrobotData) {
+        window.HydrobotData.hydrateLiveData({
+          telemetry: res.telemetry || {},
+          telemetryHistory: res.telemetryHistory || {},
+          resourceSeries: res.resourceSeries || [],
+        });
+      }
+      this.syncError = null;
+      this.saveLocalSafe();
+      window.LiveGardenUI?.updateInPlace?.();
+      scheduleRender();
+    } catch (e) {
+      if (e?.status !== 401 && e?.status !== 429) {
+        this.syncError = e?.message || 'Background sync interrupted.';
+      }
+    }
+  },
+  startPolling() {
+    if (this.pollTimer) return;
+    this.pollTimer = setInterval(() => { this.syncIncremental(); }, 4000);
   },
   loadLocal() {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) { const d = JSON.parse(raw); COLS.forEach(c => this.data[c] = d[c] || {}); } }
+    try {
+      const rawSim = localStorage.getItem(LS_KEY);
+      if (rawSim) { const d = JSON.parse(rawSim); COLS.forEach(c => this.simData[c] = d[c] || {}); }
+      const rawLive = localStorage.getItem(LS_KEY_LIVE);
+      if (rawLive) { const d = JSON.parse(rawLive); COLS.forEach(c => this.liveData[c] = d[c] || {}); }
+    }
     catch (e) { this.error = 'Browser storage is blocked, so changes will last only until you close this page.'; }
   },
+  saveLocalSafe() {
+    try { this.saveLocal(); } catch {}
+  },
   saveLocal() {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(this.data)); }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(this.simData));
+      localStorage.setItem(LS_KEY_LIVE, JSON.stringify(this.liveData));
+    }
     catch (e) { throw { code: 'storage_full', message: 'Browser storage is full or blocked.' }; }
   },
   all(col) {
+    if (isLiveMode()) {
+      return Object.values(this.liveData[col] || {}).filter(d => d && !d._deleted);
+    }
     const map = new Map((DEMO[col] || []).map(d => [d.id, d]));
-    for (const [id, d] of Object.entries(this.data[col] || {})) map.set(id, d);
+    for (const [id, d] of Object.entries(this.simData[col] || {})) map.set(id, d);
     return [...map.values()].filter(d => !d._deleted);
   },
   get(col, id) { return this.all(col).find(d => d.id === id); },
   async put(col, doc) {
+    const activeMode = isLiveMode() ? 'live' : 'simulated';
+    const target = isLiveMode() ? this.liveData : this.simData;
     const clean = JSON.parse(JSON.stringify({ ...doc, updatedAt: Date.now(), updatedBy: currentUser().name }));
-    const prev = this.data[col][doc.id];
-    this.data[col] = { ...this.data[col], [doc.id]: clean };
+    const prev = target[col][doc.id];
+    target[col] = { ...target[col], [doc.id]: clean };
     try {
-      if (this.mode === 'db') await withRetry(() => this.db.collection(col).doc(doc.id).set(clean));
-      else this.saveLocal();
+      if (this.mode === 'db') {
+        await withRetry(() => this.db.collection(col).doc(doc.id).set(clean));
+      } else if (this.mode === 'backend') {
+        const res = await fetch('/api/farm-state', {
+          method: 'PUT',
+          headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            mode: activeMode,
+            farmId: this.scopeFarmId(),
+            op: (activeMode === 'live' && clean._deleted) ? 'remove' : 'put',
+            col,
+            id: clean.id,
+            doc: clean,
+          }),
+        });
+        const out = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(out?.error || 'Could not save to server.');
+        if (out?.revision) this.rev[activeMode] = Number(out.revision);
+        this.syncError = null;
+        this.saveLocalSafe();
+      } else {
+        this.saveLocal();
+      }
+      if (SYNC_CHANNEL) SYNC_CHANNEL.postMessage({ type: 'state_changed', col, id: doc.id, mode: activeMode });
     } catch (e) {
-      const copy = { ...this.data[col] }; if (prev) copy[doc.id] = prev; else delete copy[doc.id]; this.data[col] = copy;
+      const copy = { ...target[col] }; if (prev) copy[doc.id] = prev; else delete copy[doc.id]; target[col] = copy;
       throw e;
     }
+    window.LiveGardenUI?.updateInPlace?.();
     scheduleRender();
     return clean;
   },
-  async remove(col, id) { const d = this.get(col, id); if (d) await this.put(col, { ...d, _deleted: true }); },
+  async remove(col, id) {
+    const d = this.get(col, id);
+    if (!d) return;
+    if (isLiveMode()) {
+      const target = this.liveData;
+      const prev = target[col][id];
+      const copy = { ...target[col] };
+      delete copy[id];
+      target[col] = copy;
+      try {
+        if (this.mode === 'db') {
+          await withRetry(() => this.db.collection(col).doc(id).set({ ...d, _deleted: true }));
+        } else if (this.mode === 'backend') {
+          const res = await fetch('/api/farm-state', {
+            method: 'PUT',
+            headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ mode: 'live', farmId: this.scopeFarmId(), op: 'remove', col, id }),
+          });
+          const out = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(out?.error || 'Could not remove record on server.');
+          if (out?.revision) this.rev.live = Number(out.revision);
+          this.saveLocalSafe();
+        } else {
+          this.saveLocal();
+        }
+        if (SYNC_CHANNEL) SYNC_CHANNEL.postMessage({ type: 'state_changed', col, id, mode: 'live' });
+      } catch (e) {
+        if (prev) target[col] = { ...target[col], [id]: prev };
+        throw e;
+      }
+      window.LiveGardenUI?.updateInPlace?.();
+      scheduleRender();
+      return;
+    }
+    await this.put(col, { ...d, _deleted: true });
+  },
+  async ingestLiveTelemetry(ghId, metrics, meta = {}) {
+    if (window.HydrobotData) {
+      window.HydrobotData.ingestSensorReading(ghId, metrics, meta);
+    }
+    if (this.mode === 'backend') {
+      const res = await fetch('/api/telemetry/ingest', {
+        method: 'POST',
+        headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ farmId: this.scopeFarmId(), ghId, metrics, source: meta.source || 'manual', at: meta.at || Date.now() }),
+      });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(out?.error || 'Could not save telemetry.');
+      if (out?.revision) this.rev.live = Number(out.revision);
+    }
+    if (SYNC_CHANNEL) SYNC_CHANNEL.postMessage({ type: 'state_changed', col: 'telemetry', id: ghId, mode: 'live' });
+    window.LiveGardenUI?.updateInPlace?.();
+    scheduleRender();
+  },
+  async saveResourcePoint(op, payload) {
+    if (window.HydrobotData) {
+      if (op === 'delete') window.HydrobotData.removeResourcePoint(payload.date);
+      else window.HydrobotData.upsertResourcePoint(payload);
+    }
+    if (this.mode === 'backend') {
+      const res = await fetch('/api/telemetry/resources', {
+        method: 'POST',
+        headers: this.authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ farmId: this.scopeFarmId(), op, ...payload }),
+      });
+      const out = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(out?.error || 'Could not save resource meter log.');
+      if (out?.revision) this.rev.live = Number(out.revision);
+    }
+    if (SYNC_CHANNEL) SYNC_CHANNEL.postMessage({ type: 'state_changed', col: 'resources', id: payload.date, mode: 'live' });
+    scheduleRender();
+  },
 };
 async function withRetry(fn) {
   try { return await fn(); }
@@ -357,28 +673,124 @@ const currentUser = () => {
 };
 const can = p => ROLES[ui.role].perms.includes(p);
 
-/* ================= Derived farm data ================= */
+/* ================= Derived farm data (100% dynamic) ================= */
+const greenhouses = () => Store.all('greenhouses');
+const ghById = id => greenhouses().find(g => g.id === id) || null;
+const ghName = id => ghById(id)?.name || id || 'Unassigned';
+function teamMembers() {
+  const map = new Map();
+  if (typeof AuthState !== 'undefined' && !AuthState.isDemoAuth && Array.isArray(AuthState.farmMembers)) {
+    AuthState.farmMembers
+      .filter(m => m.farm_id === AuthState.currentFarmId)
+      .forEach((m, idx) => {
+        const label = m.full_name || m.email || (m.user_id === AuthState.user?.id ? currentUser().name : `Member ${idx + 1}`);
+        const roleLabel = AUTH_ROLE_MAP[m.role] || m.role || 'Farm Worker';
+        map.set(String(m.user_id || label), { id: String(m.user_id || label), name: label, role: roleLabel });
+      });
+  }
+  Store.all('team').forEach(p => {
+    if (p && p.name) map.set(p.id, { id: p.id, name: p.name, role: p.role || 'Farm Worker' });
+  });
+  return [...map.values()];
+}
+function cropsMap() {
+  const out = {};
+  Store.all('crops').forEach(c => { if (c && c.id) out[c.id] = c; });
+  if (!Object.keys(out).length && !isLiveMode()) {
+    Object.entries(DEFAULT_CROPS).forEach(([id, c]) => { out[id] = { id, ...c }; });
+  }
+  return out;
+}
+function cropDef(key) {
+  const custom = Store.get('crops', key);
+  if (custom) return custom;
+  if (DEFAULT_CROPS[key]) return { id: key, ...DEFAULT_CROPS[key] };
+  return {
+    id: key || 'Crop',
+    label: String(key || 'Crop'),
+    cycle: 45,
+    price: 6.0,
+    ypp: 0.15,
+    continuous: false,
+    ph: [5.5, 6.5],
+    ec: { Germination: [0.6, 1.0], Seedling: [0.8, 1.2], Vegetative: [1.0, 1.8], Flowering: [1.4, 2.2], Fruiting: [1.6, 2.4], Ready: [1.2, 2.0] },
+  };
+}
+function customersList() {
+  const set = new Set();
+  if (!isLiveMode()) DEFAULT_CUSTOMERS.forEach(c => set.add(c));
+  Store.all('orders').forEach(o => { if (o && o.customer) set.add(o.customer); });
+  return [...set];
+}
 const batches = () => Store.all('batches');
 const activeBatches = () => batches().filter(b => b.stage !== 'Harvested');
 const tasks = () => Store.all('tasks');
 const inventory = () => Store.all('inventory');
 const harvests = () => Store.all('harvests').sort((a, b) => b.date.localeCompare(a.date));
 const orders = () => Store.all('orders').sort((a, b) => b.date.localeCompare(a.date));
-function targets(ghId) { const t = Store.get('targets', ghId); return { ...DEFAULT_TARGETS[ghId], ...(t ? t.ranges : {}) }; }
-function manualReading(ghId) { return Store.all('readings').filter(r => r.ghId === ghId).sort((a, b) => b.at - a.at)[0]; }
-function readings(ghId) { return { ...CURRENT[ghId] }; }
+function targets(ghId) {
+  const t = Store.get('targets', ghId);
+  const base = DEFAULT_TARGETS[ghId] || FALLBACK_TARGETS;
+  return { ...base, ...(t ? t.ranges : {}) };
+}
+const readingEpoch = v => { const n = Number(v); if (Number.isFinite(n) && n > 0) return n; const p = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isFinite(p) && p > 0 ? p : 0; };
+function manualReadingsForGh(ghId) { return Store.all('readings').filter(r => r.ghId === ghId).sort((a, b) => readingEpoch(b.at) - readingEpoch(a.at)); }
+function manualReading(ghId) { return manualReadingsForGh(ghId)[0]; }
+function readings(ghId) {
+  if (!isLiveMode()) {
+    const base = CURRENT[ghId] ? { ...CURRENT[ghId] } : null;
+    const mrs = manualReadingsForGh(ghId);
+    if (!mrs.length) return base;
+    const merged = base ? { ...base } : {};
+    mrs.slice().sort((a, b) => readingEpoch(a.at) - readingEpoch(b.at)).forEach(mr => {
+      SENSORS.forEach(s => {
+        if (mr[s.k] !== null && mr[s.k] !== undefined && Number.isFinite(Number(mr[s.k]))) merged[s.k] = Number(mr[s.k]);
+      });
+    });
+    return Object.keys(merged).length ? merged : null;
+  }
+  const mrs = manualReadingsForGh(ghId);
+  const live = window.HydrobotData?.getLiveTelemetry(ghId, mrs);
+  return live ? live.values : null;
+}
+function readingMeta(ghId, metricKey) {
+  if (!isLiveMode()) {
+    const age = READ_AT[ghId] ?? 1;
+    return { source: 'simulated', ageMin: age, lastAt: Date.now() - age * 60000 };
+  }
+  const mrs = manualReadingsForGh(ghId);
+  const live = window.HydrobotData?.getLiveTelemetry(ghId, mrs);
+  if (!live) return null;
+  const at = metricKey ? live.updatedAtByMetric?.[metricKey] : live.lastAt;
+  return {
+    source: live.source || 'sensor',
+    lastAt: at || live.lastAt || null,
+    ageMin: at ? Math.max(1, Math.round((Date.now() - at) / 60000)) : null,
+    updatedAtByMetric: live.updatedAtByMetric || {},
+  };
+}
 function metricStatus(v, range) {
-  const [lo, hi] = range; if (v >= lo && v <= hi) return 'ok';
-  const d = v < lo ? (lo - v) / Math.abs(lo || 1) : (v - hi) / Math.abs(hi || 1);
+  if (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) || !Array.isArray(range)) return 'nodata';
+  const val = Number(v);
+  const [lo, hi] = range; if (val >= lo && val <= hi) return 'ok';
+  const d = val < lo ? (lo - val) / Math.abs(lo || 1) : (val - hi) / Math.abs(hi || 1);
   return d > 0.15 ? 'crit' : 'warn';
 }
 function ghStatus(ghId) {
-  const r = readings(ghId), t = targets(ghId); let worst = 'ok';
-  SENSORS.forEach(s => { const st = metricStatus(r[s.k], t[s.k]); if (st === 'crit') worst = 'crit'; else if (st === 'warn' && worst === 'ok') worst = 'warn'; });
-  return worst;
+  const r = readings(ghId), t = targets(ghId);
+  if (!r) return 'nodata';
+  let worst = 'ok', hasAny = false;
+  SENSORS.forEach(s => {
+    const st = metricStatus(r[s.k], t[s.k]);
+    if (st === 'nodata') return;
+    hasAny = true;
+    if (st === 'crit') worst = 'crit';
+    else if (st === 'warn' && worst === 'ok') worst = 'warn';
+  });
+  return hasAny ? worst : 'nodata';
 }
-const ST_LABEL = { ok: 'Optimal', warn: 'Attention', crit: 'Critical' };
-const badge = st => `<span class="badge b-${st}">${ST_LABEL[st]}</span>`;
+const ST_LABEL = { ok: 'Optimal', warn: 'Attention', crit: 'Critical', nodata: 'No data' };
+const badge = st => `<span class="badge b-${st}">${ST_LABEL[st] || 'No data'}</span>`;
 const isOverdue = t => t.status !== 'Done' && new Date(parseD(t.due).getTime() + timeMs(t.time)) < new Date();
 const timeMs = t => { const [h, m] = String(t || '23:59').split(':').map(Number); return (h * 60 + m) * 60000; };
 function readiness(b) {
@@ -387,11 +799,11 @@ function readiness(b) {
   return Math.round(clamp((TODAY - p) / Math.max(DAY, e - p), 0, 1) * 100);
 }
 function ghPlants(ghId) { return activeBatches().filter(b => b.ghId === ghId).reduce((s, b) => s + Number(b.plants), 0); }
-function ghCrops(ghId) { return [...new Set(activeBatches().filter(b => b.ghId === ghId).map(b => CROPS[b.crop].label))]; }
+function ghCrops(ghId) { return [...new Set(activeBatches().filter(b => b.ghId === ghId).map(b => cropDef(b.crop).label))]; }
 function forecastItems(horizon) {
   const out = [];
   activeBatches().forEach(b => {
-    const c = CROPS[b.crop]; let d = daysFrom(b.expectedHarvest);
+    const c = cropDef(b.crop); let d = daysFrom(b.expectedHarvest);
     if (d < 0) d = 0;
     if (c.continuous && ['Flowering', 'Fruiting', 'Ready'].includes(b.stage)) {
       for (let x = d; x <= horizon; x += 7) out.push({ batch: b, day: x, date: dOff(x), kg: Number(b.estKg), crop: b.crop });
@@ -404,10 +816,10 @@ function kpis() {
   const plants = act.reduce((s, b) => s + Number(b.plants), 0);
   const health = plants ? act.reduce((s, b) => s + b.health * b.plants, 0) / plants : 0;
   const f30 = forecastItems(30);
-  const rev = f30.reduce((s, i) => s + i.kg * CROPS[i.crop].price, 0);
+  const rev = f30.reduce((s, i) => s + i.kg * (Number(cropDef(i.crop).price) || 0), 0);
   const open = tasks().filter(t => t.status !== 'Done');
   const ready = act.filter(b => b.stage === 'Ready' || daysFrom(b.expectedHarvest) <= 7);
-  const gOn = GH.filter(g => ghPlants(g.id) > 0).length;
+  const gOn = greenhouses().filter(g => ghPlants(g.id) > 0).length;
   return { plants, health, rev, f30kg: f30.reduce((s, i) => s + i.kg, 0), open, ready, gOn, batches: act.length };
 }
 function historicalRatio(crop) {
@@ -422,23 +834,29 @@ function historicalRatio(crop) {
 /* Alerts derived from sensors, inventory, tasks and observations */
 function alerts() {
   const list = [];
-  GH.forEach(g => {
+  const live = isLiveMode();
+  greenhouses().forEach(g => {
     const r = readings(g.id), t = targets(g.id);
+    if (!r) return;
+    const meta = readingMeta(g.id);
     SENSORS.forEach(s => {
-      const st = metricStatus(r[s.k], t[s.k]); if (st === 'ok') return;
-      const low = r[s.k] < t[s.k][0];
+      const st = metricStatus(r[s.k], t[s.k]); if (st === 'ok' || st === 'nodata') return;
+      const low = Number(r[s.k]) < t[s.k][0];
       let title = `${s.label} ${low ? 'low' : 'high'} in ${g.name}`;
       if (s.k === 'res') title = `Low water level in ${g.name} reservoir`;
       if (s.k === 'temp') title = `Temperature ${low ? 'below' : 'above'} target in ${g.name}`;
+      const srcLabel = !live ? 'Demo reading.' : meta?.source === 'manual' ? 'Manual meter reading.' : 'Live sensor reading.';
+      const metricAt = meta?.updatedAtByMetric?.[s.k] || meta?.lastAt;
+      const age = !live ? (READ_AT[g.id] ?? 1) : (metricAt ? Math.max(1, Math.round((Date.now() - metricAt) / 60000)) : 1);
       list.push({ id: `sensor-${g.id}-${s.k}`, sev: st, kind: s.k === 'res' ? 'Water level' : s.k === 'temp' ? 'Temperature' : 'Sensor', icon: s.icon, title,
-        detail: `Reading ${num(r[s.k], s.dec)}${s.unit ? ' ' + s.unit : ''}, target ${t[s.k][0]}–${t[s.k][1]}${s.unit ? ' ' + s.unit : ''}. Demo reading.`, link: '#' + g.id, linkLabel: 'Open ' + g.name, age: READ_AT[g.id] });
+        detail: `Reading ${num(r[s.k], s.dec)}${s.unit ? ' ' + s.unit : ''}, target ${t[s.k][0]}–${t[s.k][1]}${s.unit ? ' ' + s.unit : ''}. ${srcLabel}`, link: '#' + g.id, linkLabel: 'Open ' + g.name, age });
     });
   });
   batches().forEach(b => (b.observations || []).forEach((o, i) => {
-    if (o.flag && b.stage !== 'Harvested' && daysFrom(o.date) >= -14) list.push({ id: `disease-${b.id}-${i}`, sev: 'crit', kind: 'Suspected disease', icon: 'scan', title: `${o.flag} reported in ${b.id} (${CROPS[b.crop].label})`, detail: `${ghById(b.ghId).name}, zone ${b.zone}: “${o.note}” — ${o.by}, ${fmtD(o.date)}.`, action: { act: 'batch', id: b.id, label: 'View batch' }, age: -daysFrom(o.date) * 1440 });
+    if (o.flag && b.stage !== 'Harvested' && daysFrom(o.date) >= -14) list.push({ id: `disease-${b.id}-${i}`, sev: 'crit', kind: 'Suspected disease', icon: 'scan', title: `${o.flag} reported in ${b.id} (${cropDef(b.crop).label})`, detail: `${ghName(b.ghId)}, zone ${b.zone}: “${o.note}” — ${o.by}, ${fmtD(o.date)}.`, action: { act: 'batch', id: b.id, label: 'View batch' }, age: -daysFrom(o.date) * 1440 });
   }));
   inventory().filter(i => Number(i.qty) < Number(i.threshold)).forEach(i => list.push({ id: `inv-${i.id}`, sev: Number(i.qty) < Number(i.threshold) * 0.5 ? 'crit' : 'warn', kind: 'Low inventory', icon: 'box', title: `${i.name} below reorder point`, detail: `${num(i.qty)} ${i.unit} on hand, reorder at ${num(i.threshold)} ${i.unit}. Supplier: ${i.supplier}.`, link: '#inventory', linkLabel: 'Open inventory', age: 600 }));
-  tasks().filter(isOverdue).forEach(t => list.push({ id: `task-${t.id}`, sev: t.priority === 'High' ? 'crit' : 'warn', kind: 'Overdue task', icon: 'clipboard', title: `Overdue: ${t.title}`, detail: `Assigned to ${t.assignee}, ${ghById(t.ghId)?.name || ''}. Was due ${fmtD(t.due)} at ${fmtT(t.time)}.`, action: { act: 'task-edit', id: t.id, label: 'Open task' }, age: Math.round((Date.now() - parseD(t.due).getTime() - timeMs(t.time)) / 60000) }));
+  tasks().filter(isOverdue).forEach(t => list.push({ id: `task-${t.id}`, sev: t.priority === 'High' ? 'crit' : 'warn', kind: 'Overdue task', icon: 'clipboard', title: `Overdue: ${t.title}`, detail: `Assigned to ${t.assignee}, ${ghName(t.ghId)}. Was due ${fmtD(t.due)} at ${fmtT(t.time)}.`, action: { act: 'task-edit', id: t.id, label: 'Open task' }, age: Math.round((Date.now() - parseD(t.due).getTime() - timeMs(t.time)) / 60000) }));
   const state = Store.data.alerts || {};
   list.forEach(a => { a.state = state[a.id]?.status || 'new'; a.stateBy = state[a.id]?.updatedBy; });
   const sevRank = { crit: 0, warn: 1 };
@@ -447,9 +865,18 @@ function alerts() {
 const activeAlerts = () => alerts().filter(a => a.state !== 'resolved');
 const ageText = m => m < 60 ? `${Math.max(1, m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
 
-/* Sensor history (demo, deterministic) */
+/* Sensor history (demo or live) */
 function history(ghId, key, range) {
-  const r = rng(hash(ghId + key + range)), cur = CURRENT[ghId][key], t = DEFAULT_TARGETS[ghId][key];
+  if (isLiveMode()) {
+    const mrs = manualReadingsForGh(ghId);
+    return window.HydrobotData ? window.HydrobotData.getLiveHistory(ghId, key, range, mrs) : [];
+  }
+  const cur = CURRENT[ghId]?.[key];
+  if (cur === undefined || cur === null) {
+    const mrs = manualReadingsForGh(ghId);
+    return window.HydrobotData ? window.HydrobotData.getLiveHistory(ghId, key, range, mrs) : [];
+  }
+  const r = rng(hash(ghId + key + range)), t = targets(ghId)[key] || FALLBACK_TARGETS[key];
   const n = range === '24h' ? 24 : range === '7d' ? 28 : 30, stepH = range === '24h' ? 1 : range === '7d' ? 6 : 24;
   const mid = (t[0] + t[1]) / 2, amp = (t[1] - t[0]) * 0.22, pts = [];
   for (let i = n - 1; i >= 0; i--) {
@@ -462,6 +889,12 @@ function history(ghId, key, range) {
     pts.push({ at, v: +v.toFixed(sensorDef(key).dec) });
   }
   return pts;
+}
+function resourceSeriesForMode(days) {
+  if (isLiveMode()) {
+    return window.HydrobotData ? window.HydrobotData.getLiveResourceSeries(days) : [];
+  }
+  return resourceSeries(days);
 }
 
 /* ================= Rendering infrastructure ================= */
@@ -486,7 +919,13 @@ const ROUTES = {
   logistics: { label: 'Logistics', icon: 'truck', group: 'Business', view: () => vLogistics() },
   alerts: { label: 'Smart Alerts', icon: 'bell', group: 'Monitoring', view: () => vAlerts() },
 };
-GH.forEach(g => ROUTES[g.id] = { label: g.name, parent: 'greenhouses', view: () => vGhDetail(g.id) });
+function resolveRoute(key) {
+  if (ROUTES[key]) return ROUTES[key];
+  const g = ghById(key);
+  if (g) return { label: g.name, parent: 'greenhouses', view: () => vGhDetail(g.id) };
+  if (/^gh-/.test(String(key || ''))) return { label: 'Greenhouse', parent: 'greenhouses', view: () => vGhDetail(key) };
+  return null;
+}
 
 /* ================= Custom Mouse Follower & Scroll Animations ================= */
 let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
@@ -624,18 +1063,61 @@ function resetSensitiveStateOnSignOut(opts = {}) {
   ui.disease = null;
   if (!AuthState.isDemoAuth) {
     ui.role = 'Farm Worker';
-    COLS.forEach(c => { if (Store.data) Store.data[c] = {}; });
+    COLS.forEach(c => {
+      if (Store.simData) Store.simData[c] = {};
+      if (Store.liveData) Store.liveData[c] = {};
+    });
     try {
       localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(LS_KEY_LIVE);
       localStorage.removeItem('hydrobot.role');
     } catch (e) {}
+    window.HydrobotData?.clearAllLiveData?.();
   }
 }
 
 function activeFarmName() {
+  const meta = Store.get('farm', 'meta');
   const f = AuthState.farms.find(x => x.farmId === AuthState.currentFarmId);
-  if (f) return f.name;
-  return ui.farm === 'hilltop' ? 'Hilltop Annex' : 'Riverside Hydro Farm';
+  if (!AuthState.isDemoAuth && isUuid(AuthState.currentFarmId) && f?.name) return meta?.name || f.name;
+  if (meta && meta.name) return meta.name;
+  if (f && f.name) return f.name;
+  if (ui.farm === 'hilltop') return 'Hilltop Annex';
+  return isLiveMode() ? 'My Farm' : 'Riverside Hydro Farm';
+}
+
+function activeFarmLocation() {
+  const meta = Store.get('farm', 'meta');
+  const f = AuthState.farms.find(x => x.farmId === AuthState.currentFarmId);
+  if (meta && meta.location !== undefined) return meta.location;
+  if (f && f.location) return f.location;
+  return isLiveMode() ? '' : 'Valley Sector A';
+}
+
+function farmSettingsForm() {
+  if (!can('targets')) return toast('Editing farm settings is not available for this role.', 'error');
+  openModal({
+    title: 'Farm settings', submitLabel: 'Save farm details',
+    body: `<div class="form-grid">
+      <div class="full">${fld('Farm name', `<input id="fm-name" name="name" value="${esc(activeFarmName())}" placeholder="e.g. Valley Hydro Farm">`, 'name')}</div>
+      <div class="full">${fld('Location / sector', `<input id="fm-loc" name="location" value="${esc(activeFarmLocation())}" placeholder="e.g. Sector A, Greenhouse Row">`, 'location')}</div>
+    </div>`,
+    validate: d => ({
+      name: d.name.trim().length < 2 && 'Enter a farm name (at least 2 characters).',
+    }),
+    submit: async d => {
+      const name = d.name.trim();
+      const location = d.location.trim();
+      await Store.put('farm', { id: 'meta', name, location });
+      const f = AuthState.farms.find(x => x.farmId === AuthState.currentFarmId);
+      if (f) { f.name = name; f.location = location; }
+      if (sbClient && !AuthState.isDemoAuth && isUuid(AuthState.currentFarmId)) {
+        const { error } = await sbClient.from('farms').update({ name, location }).eq('id', AuthState.currentFarmId);
+        if (error) throw error;
+      }
+      return `Farm updated to "${name}".`;
+    }
+  });
 }
 
 async function initAuth() {
@@ -799,6 +1281,28 @@ async function logEquipmentCommand({ device, command, maxRuntimeMinutes = 0 }) {
   return { data };
 }
 
+let eqCmdChannel = null;
+function subscribeEquipmentCommandsRealtime() {
+  if (!sbClient || AuthState.isDemoAuth || !isUuid(AuthState.currentFarmId)) return;
+  try {
+    if (eqCmdChannel) { sbClient.removeChannel(eqCmdChannel); eqCmdChannel = null; }
+    eqCmdChannel = sbClient
+      .channel(`eq-cmd-${AuthState.currentFarmId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'equipment_commands',
+        filter: `farm_id=eq.${AuthState.currentFarmId}`,
+      }, async () => {
+        await loadEquipmentCommands();
+        scheduleRender();
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('equipment_commands realtime skipped:', e?.message || e);
+  }
+}
+
 async function loadUserFarms() {
   if (!sbClient || !AuthState.user) return;
   try {
@@ -825,7 +1329,7 @@ async function loadUserFarms() {
       role: myRolesByFarm.get(f.id) || 'worker',
     }));
     if (AuthState.farms.length === 0) {
-      AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
+      AuthState.farms = [{ farmId: 'riverside', name: isLiveMode() ? 'My Farm' : 'Riverside Hydro Farm', location: '', role: 'owner' }];
       AuthState.currentFarmId = 'riverside';
       AuthState.role = 'owner';
       ui.role = 'Farm Owner';
@@ -841,9 +1345,13 @@ async function loadUserFarms() {
       AuthState.authView = 'welcome';
     }
     await loadEquipmentCommands();
+    subscribeEquipmentCommandsRealtime();
+    if (Store.mode === 'backend') {
+      await Store.loadFromBackend();
+    }
   } catch (e) {
     console.warn('Failed to load user farms from Supabase:', e);
-    AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', location: 'Valley Sector A', role: 'owner' }];
+    AuthState.farms = [{ farmId: 'riverside', name: isLiveMode() ? 'My Farm' : 'Riverside Hydro Farm', location: '', role: 'owner' }];
     AuthState.currentFarmId = 'riverside';
     AuthState.role = 'owner';
     ui.role = 'Farm Owner';
@@ -1137,7 +1645,8 @@ function renderNav() {
     if (AuthState.role === 'worker' && ['finance', 'sales'].includes(k)) return;
     if (r.group) (groups[r.group] = groups[r.group] || []).push([k, r]);
   });
-  const cur = ROUTES[ui.route]?.parent || ui.route;
+  const resolvedRoute = resolveRoute(ui.route);
+  const cur = resolvedRoute?.parent || ui.route;
   const ac = Store.mode === 'loading' ? 0 : activeAlerts().filter(a => a.state === 'new').length;
   $('#nav').innerHTML = Object.entries(groups).map(([g, items]) => `<div class="nav-group" role="group" aria-labelledby="ng-${g.replace(/\W/g, '')}"><div class="nav-label" id="ng-${g.replace(/\W/g, '')}">${g}</div>${items.map(([k, r]) => `<a href="#${k}" ${cur === k ? 'aria-current="page"' : ''}>${ic(r.icon)}<span>${r.label}</span>${k === 'alerts' && ac ? `<span class="count" aria-label="${ac} new alerts">${ac}</span>` : ''}</a>`).join('')}</div>`).join('');
   const userName = AuthState.profile?.full_name || AuthState.user?.user_metadata?.full_name || AuthState.user?.email || 'User';
@@ -1173,7 +1682,51 @@ function renderTop() {
     $('#mobileUtilBtn').innerHTML = ic('grid') + (n ? `<span class="badge-count" aria-hidden="true">${n}</span>` : '');
     $('#mobileUtilBtn').setAttribute('aria-label', `Quick utilities and menu${n ? `, ${n} new alerts` : ''}`);
   }
+  syncDataModeUI();
   updateThemeUI();
+}
+
+function dataModeToggleHtml(cls = '') {
+  const live = isLiveMode();
+  return `<div class="data-mode-toggle ${cls}" role="group" aria-label="Data mode">
+    <button type="button" class="dm-btn" data-data-mode="simulated" aria-pressed="${!live}"><span class="dm-dot sim" aria-hidden="true"></span><span>Simulated Data</span></button>
+    <button type="button" class="dm-btn" data-data-mode="live" aria-pressed="${live}"><span class="dm-dot live" aria-hidden="true"></span><span>Live Data</span></button>
+  </div>`;
+}
+
+function syncDataModeUI() {
+  const live = isLiveMode();
+  $$('[data-data-mode]').forEach(btn => {
+    const active = (btn.dataset.dataMode === 'live') === live;
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+function setDataMode(mode) {
+  if (!window.HydrobotData) return;
+  const changed = window.HydrobotData.setMode(mode);
+  if (!changed) return;
+  if (window.HydrobotData.isSimulated()) {
+    restoreSimulatedCurrent();
+  }
+  const ghs = greenhouses();
+  if (ghs.length && !ghById(ui.nutGh)) {
+    ui.nutGh = ghs[0].id;
+  }
+  if (SYNC_CHANNEL) {
+    SYNC_CHANNEL.postMessage({ type: 'mode_changed', mode });
+  }
+  if (window.HydrobotData.isLive() && Store.mode === 'backend') {
+    Store.syncIncremental();
+  }
+  window.LiveGardenUI?.syncDataMode?.();
+  syncDataModeUI();
+  const pop = $('#mobileUtilPop');
+  if (pop && !pop.hidden) pop.innerHTML = mobileUtilHtml();
+  render();
+  toast(window.HydrobotData.isLive()
+    ? 'Live Data mode active. Waiting for sensor or manual inputs.'
+    : 'Simulated Data mode restored.');
 }
 
 function render() {
@@ -1229,11 +1782,13 @@ function render() {
   charts.forEach(c => c.destroy()); charts = [];
   renderNav(); renderTop();
   if (Store.mode === 'loading') { view.innerHTML = loadingView(); return; }
-  const r = ROUTES[ui.route] || ROUTES.dashboard;
+  const r = resolveRoute(ui.route) || ROUTES.dashboard;
   let html;
   if (ui.farm === 'hilltop') html = vEmptyFarm();
   else { try { html = r.view(); } catch (e) { console.error(e); html = `<div class="card card-b"><div class="notice crit">${ic('alert')}<div><b>This page could not be displayed.</b> ${esc(e.message)}. Try another page, then come back.</div></div></div>`; } }
-  view.innerHTML = (Store.error ? `<div class="notice warn" role="alert">${ic('alert')}<div>${esc(Store.error)}</div></div>` : '') + html;
+  const bannerErr = Store.error || Store.syncError;
+  const errBanner = bannerErr ? `<div class="notice warn" role="alert">${ic('alert')}<div style="flex:1">${esc(bannerErr)}</div><button type="button" class="btn sm" data-act="store-retry">Retry sync</button></div>` : '';
+  view.innerHTML = errBanner + html;
   postRender.forEach(f => { try { f(); } catch (e) { console.error(e); } }); postRender = [];
   initScrollAnimations();
   if (fid) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus({ preventScroll: true }); if (sel && 'setSelectionRange' in el) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { } } }
@@ -1244,13 +1799,13 @@ function loadingView() {
   return `<div class="page-head"><div><h1>Loading farm records…</h1><p>Connecting to the farm database.</p></div></div><div class="card card-b loading-screen" aria-busy="true">${'<div class="skeleton"></div>'.repeat(6)}</div>`;
 }
 function vEmptyFarm() {
-  return `<div class="page-head"><div><h1>Hilltop Annex</h1><p>No greenhouses have been set up for this farm yet.</p></div></div>
-  <div class="card"><div class="empty"><span class="chip-ico">${ic('house')}</span><b>Nothing to show for Hilltop Annex</b><p>Farm setup and multi-site management need an account integration that is not connected in this prototype.</p><button class="btn primary" data-act="farm-main">Switch to Riverside Hydro Farm</button></div></div>`;
+  return `<div class="page-head"><div><h1>${esc(activeFarmName())}</h1><p>No greenhouses have been set up for this farm yet.</p></div></div>
+  <div class="card"><div class="empty"><span class="chip-ico">${ic('house')}</span><b>Nothing to show for ${esc(activeFarmName())}</b><p>Create a greenhouse or switch back to your primary workspace.</p><div class="toolbar"><button class="btn primary" data-act="farm-main">Return to primary farm</button>${can('targets') ? `<button class="btn" data-act="gh-new">${ic('plus')}Add greenhouse</button>` : ''}</div></div></div>`;
 }
 function go(route) { if (location.hash !== '#' + route) location.hash = route; else { ui.route = route; render(); } }
 function route() {
   const h = location.hash.replace('#', '');
-  ui.route = ROUTES[h] ? h : 'dashboard';
+  ui.route = resolveRoute(h) ? h : 'dashboard';
   closeNav(); render(); window.scrollTo(0, 0);
   const v = $('#view'); if (v && document.activeElement && document.activeElement.closest('.nav')) v.focus({ preventScroll: true });
 }
@@ -1260,6 +1815,8 @@ const empty = (icon, title, text, action = '') => `<div class="empty"><span clas
 const seg = (name, options, value, label) => `<div class="seg" role="group" aria-label="${label}">${options.map(([v, l]) => `<button type="button" data-seg="${name}" data-val="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
 const SIM_TAG = '<span class="tag sim">' + ic('spark') + 'Simulated AI · rule-based demo</span>';
 const DEMO_TAG = '<span class="tag demo">Demo sensor data</span>';
+const dataModeTag = () => isLiveMode() ? '<span class="tag live">Live Data · sensors &amp; manual logs</span>' : DEMO_TAG;
+const aiModeTag = () => isLiveMode() ? '<span class="tag live">' + ic('spark') + 'Live Data · rule-based engine</span>' : SIM_TAG;
 const noPerm = what => `<div class="notice">${ic('info')}<div>${what} is not available for the <b>${esc(ui.role)}</b> role. Switch roles from your profile menu to try it.</div></div>`;
 
 /* ================= Charts ================= */
@@ -1284,24 +1841,37 @@ function weekKey(s) { const d = parseD(s); const day = (d.getDay() + 6) % 7; ret
 
 /* ================= Dashboard ================= */
 function vDashboard() {
-  const k = kpis(), al = activeAlerts();
+  const k = kpis(), al = activeAlerts(), live = isLiveMode(), ghs = greenhouses();
   const greeting = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 18 ? 'Good afternoon' : 'Good evening';
   const todayTasks = tasks().filter(t => t.due === dOff(0) || isOverdue(t)).sort((a, b) => (a.status === 'Done') - (b.status === 'Done') || (b.due < a.due) - (a.due < b.due) || a.time.localeCompare(b.time));
   const dueToday = k.open.filter(t => t.due === dOff(0)).length, overdue = k.open.filter(isOverdue).length;
-  const k6 = [
+  const connectedGhs = live ? ghs.filter(g => readings(g.id) !== null).length : ghs.length;
+  const k6 = live ? [
+    ['sprout', 'Total plants', k.batches ? num(k.plants) : '0', k.batches ? `${k.batches} active crop batches` : 'No batches added yet'],
+    ['house', 'Active greenhouses', `${k.gOn}<span class="muted" style="font-size:1rem"> / ${ghs.length}</span>`, ghs.length === 0 ? 'No greenhouses configured yet' : connectedGhs ? `${connectedGhs} reporting live data` : 'Waiting for sensor data'],
+    ['leaf', 'Average plant health', k.plants ? `${num(k.health, 1)}<span class="muted" style="font-size:1rem">%</span>` : '—', k.plants ? 'Weighted by plant count' : 'No data available yet'],
+    ['wallet', 'Projected harvest revenue', k.f30kg ? money(k.rev) : '—', k.f30kg ? `<span class="tag proj">Projection</span> next 30 days, ${num(k.f30kg)} kg` : 'No forecast data yet'],
+    ['clipboard', 'Open tasks', num(k.open.length), k.open.length ? `${dueToday} due today${overdue ? ` · <span class="overdue">${overdue} overdue</span>` : ''}` : 'No tasks scheduled yet'],
+    ['basket', 'Crops ready to harvest', num(k.ready.length), k.ready.length ? 'Batches ready within 7 days' : 'No harvests ready yet'],
+  ] : [
     ['sprout', 'Total plants', num(k.plants), `${k.batches} active crop batches`],
-    ['house', 'Active greenhouses', `${k.gOn}<span class="muted" style="font-size:1rem"> / ${GH.length}</span>`, 'Sensor feeds are demo data'],
-    ['leaf', 'Average plant health', `${num(k.health, 1)}<span class="muted" style="font-size:1rem">%</span>`, 'Weighted by plant count'],
-    ['wallet', 'Projected harvest revenue', money(k.rev), `<span class="tag proj">Projection</span> next 30 days, ${num(k.f30kg)} kg`],
+    ['house', 'Active greenhouses', `${k.gOn}<span class="muted" style="font-size:1rem"> / ${ghs.length}</span>`, ghs.length ? 'Sensor feeds are demo data' : 'No greenhouses configured'],
+    ['leaf', 'Average plant health', k.plants ? `${num(k.health, 1)}<span class="muted" style="font-size:1rem">%</span>` : '—', k.plants ? 'Weighted by plant count' : 'No active crops'],
+    ['wallet', 'Projected harvest revenue', k.f30kg ? money(k.rev) : '—', `<span class="tag proj">Projection</span> next 30 days, ${num(k.f30kg)} kg`],
     ['clipboard', 'Open tasks', num(k.open.length), `${dueToday} due today${overdue ? ` · <span class="overdue">${overdue} overdue</span>` : ''}`],
     ['basket', 'Crops ready to harvest', num(k.ready.length), 'Batches ready within 7 days'],
   ];
   const pipe = activeBatches().sort((a, b) => a.expectedHarvest.localeCompare(b.expectedHarvest)).slice(0, 6);
+  const ghBody = ghs.length
+    ? `<div class="gh-grid">${ghs.map(g => ghCard(g, { secondary: true })).join('')}</div>`
+    : empty('house', 'No greenhouses configured yet', 'Add a greenhouse to start tracking environmental telemetry, crop zones, and alerts.', can('targets') ? `<button class="btn primary" data-act="gh-new">${ic('plus')}Add greenhouse</button>` : '');
+  const ghCardActions = `${dataModeTag()}${can('targets') ? `<button class="btn sm" data-act="gh-new">${ic('plus')}Add</button>` : ''}`;
+  const trendActions = `${live ? `<button class="btn sm" data-act="resource-new">${ic('edit')}Log meters</button>` : ''}${seg('trendRange', [[7, '7 days'], [30, '30 days'], [90, '90 days']], ui.trendRange, 'Date range')}`;
   return `
-  ${pageHead('Dashboard', `${greeting}, ${esc(currentUser().name.split(' ')[0])} · Riverside Hydro Farm · ${fmtDL(dOff(0))}`, `${DEMO_TAG}<a class="btn" href="#alerts">${ic('bell')}Alerts (${al.length})</a>${can('tasks') ? `<button class="btn primary" data-act="task-new">${ic('plus')}New task</button>` : ''}`)}
+  ${pageHead('Dashboard', `${greeting}, ${esc(currentUser().name.split(' ')[0])} · ${esc(activeFarmName())} · ${fmtDL(dOff(0))}`, `${dataModeToggleHtml('mobile-data-mode')}${dataModeTag()}<a class="btn" href="#alerts">${ic('bell')}Alerts (${al.length})</a>${can('tasks') ? `<button class="btn primary" data-act="task-new">${ic('plus')}New task</button>` : ''}`)}
   <section class="kpis" aria-label="Farm summary">${k6.map(([i, l, v, s]) => `<div class="card kpi"><div class="kpi-top"><span class="chip-ico">${ic(i)}</span>${l}</div><div class="kpi-val">${v}</div><div class="kpi-sub">${s}</div></div>`).join('')}</section>
   <div class="grid g-main dash-overview-grid">
-    ${card('Greenhouse status', `<div class="gh-grid">${GH.map(g => ghCard(g, { secondary: true })).join('')}</div>`, { sub: 'Select a greenhouse to open its monitoring page', actions: DEMO_TAG, cls: 'dash-gh-card' })}
+    ${card('Greenhouse status', ghBody, { sub: live ? 'Select a greenhouse to connect sensors or log manual readings' : 'Select a greenhouse to open its monitoring page', actions: ghCardActions, cls: 'dash-gh-card' })}
     <div class="dash-alerts-slot">
       ${card('Smart alerts', alertFeed(al), { sub: `${al.filter(a => a.sev === 'crit').length} critical · ${al.filter(a => a.sev === 'warn').length} attention`, actions: '<a class="btn sm" href="#alerts">View all</a>', cls: 'dash-alerts-card' })}
     </div>
@@ -1310,12 +1880,12 @@ function vDashboard() {
     ${card('Harvest pipeline', pipelineTable(pipe), { sub: 'Next harvest per active batch', actions: '<a class="btn sm" href="#harvest">Harvest calendar</a>' })}
     ${card("Today's tasks", taskList(todayTasks.slice(0, 7)), { sub: `${todayTasks.filter(t => t.status === 'Done').length} of ${todayTasks.length} complete`, actions: '<a class="btn sm" href="#tasks">All tasks</a>' })}
   </div>
-  ${card('Performance trends', trendCharts(), { sub: 'Yield from harvest records; water and energy are demo meter data', actions: seg('trendRange', [[7, '7 days'], [30, '30 days'], [90, '90 days']], ui.trendRange, 'Date range') })}
+  ${card('Performance trends', trendCharts(), { sub: live ? 'Live harvest records and water/energy meter feeds' : 'Yield from harvest records; water and energy are demo meter data', actions: trendActions })}
   `;
 }
 
 function ghCard(g, opts = {}) {
-  const st = ghStatus(g.id), r = readings(g.id), t = targets(g.id);
+  const st = ghStatus(g.id), r = readings(g.id), t = targets(g.id), live = isLiveMode(), meta = readingMeta(g.id);
   const m = (k, short, extraCritCls = '') => {
     const s = sensorDef(k);
     const val = r?.[k];
@@ -1323,20 +1893,30 @@ function ghCard(g, opts = {}) {
     const ms = hasVal && t?.[k] ? metricStatus(val, t[k]) : 'ok';
     const boxCls = ms === 'crit' && extraCritCls ? ` ${extraCritCls}` : '';
     const unitHtml = s.unit ? `<span class="muted metric-unit">${s.unit}</span>` : '';
-    return `<div class="metric${boxCls}"><small>${ic(s.icon)}${short}</small><b class="${ms === 'ok' ? '' : ms}">${hasVal ? `${num(val, s.dec)}${unitHtml ? ` ${unitHtml}` : ''}` : '—'}</b></div>`;
+    return `<div class="metric${boxCls}"><small>${ic(s.icon)}${short}</small><b class="${ms === 'ok' ? '' : ms}">${hasVal ? `${num(val, s.dec)}${unitHtml ? ` ${unitHtml}` : ''}` : '<span class="muted">—</span>'}</b></div>`;
   };
   const crops = ghCrops(g.id);
   const secondaryRow = opts.secondary
     ? `<div class="metrics metrics-sub" aria-label="Water and nutrient telemetry">${m('res', 'Reservoir', 'metric-crit')}${m('ec', 'EC')}${m('ph', 'pH')}</div>`
     : '';
-  return `<a class="gh-card st-${st}" href="#${g.id}" aria-label="${g.name}: ${ST_LABEL[st]}. Open monitoring page">
-    <div class="gh-top"><div><b>${g.name}</b><div class="muted">${esc(crops.join(', ') || 'No active crop')}</div></div>${badge(st)}</div>
+  const footRight = !live
+    ? (READ_AT[g.id] != null ? `Demo reading · ${READ_AT[g.id]} min ago` : meta?.lastAt ? `Manual reading · ${ageText(meta.ageMin || 1)}` : 'Demo · ready')
+    : !meta
+      ? 'Waiting for sensor data'
+      : `${meta.source === 'manual' ? 'Manual reading' : meta.source === 'hybrid' ? 'Sensor + manual' : 'Live sensor'} · ${ageText(meta.ageMin || 1)}`;
+  const zCount = Array.isArray(g.zones) ? g.zones.length : 0;
+  return `<a class="gh-card st-${st}" href="#${esc(g.id)}" aria-label="${esc(g.name)}: ${ST_LABEL[st] || 'No data'}. Open monitoring page">
+    <div class="gh-top"><div><b>${esc(g.name)}</b><div class="muted">${esc(crops.join(', ') || 'No active crop')}</div></div>${badge(st)}</div>
     <div class="metrics">${m('temp', 'Temp')}${m('hum', 'Humidity')}${m('co2', 'CO₂')}<div class="metric"><small>${ic('sprout')}Plants</small><b>${num(ghPlants(g.id))}</b></div></div>
     ${secondaryRow}
-    <div class="gh-foot"><span>${g.system} · ${g.zones.length} zones</span><span>Demo reading · ${READ_AT[g.id]} min ago</span></div></a>`;
+    <div class="gh-foot"><span>${esc(g.system)} · ${zCount} zone${zCount === 1 ? '' : 's'}</span><span>${footRight}</span></div></a>`;
 }
 function alertFeed(list, full = false) {
-  if (!list.length) return empty('check', 'No active alerts', 'Every greenhouse, inventory item and task is within its targets.');
+  if (!list.length) {
+    return isLiveMode()
+      ? empty('check', 'No active alerts', 'Waiting for live sensor data, crop observations, stock alerts, or task warnings.')
+      : empty('check', 'No active alerts', 'Every greenhouse, inventory item and task is within its targets.');
+  }
   return `<div class="alerts">${list.map(a => `<div class="alert ${a.sev} ${a.state === 'acknowledged' ? 'acked' : ''}">
     <span class="sev-ico">${ic(a.icon)}</span>
     <div style="min-width:0"><b>${esc(a.title)}</b><p>${esc(a.detail)}</p>
@@ -1350,7 +1930,7 @@ function pipelineTable(list, actions = false) {
   if (!list.length) return empty('basket', 'No upcoming harvests', 'Add a crop batch to see it in the pipeline.');
   return `<div class="tbl-wrap"><table><thead><tr><th>Crop</th><th>Greenhouse</th><th class="r">Est. qty</th><th>Readiness</th><th>Scheduled</th>${actions ? '<th><span class="sr">Actions</span></th>' : ''}</tr></thead><tbody>${list.map(b => {
     const rd = readiness(b), d = daysFrom(b.expectedHarvest);
-    return `<tr class="click" data-act="batch" data-id="${b.id}" tabindex="0"><td><b>${CROPS[b.crop].label}</b><div class="small muted">${b.id} · zone ${esc(b.zone)}</div></td><td>${ghById(b.ghId).name}</td><td class="r num">${num(b.estKg)} kg</td><td><div class="ready"><div class="bar" style="flex:1"><i style="width:${rd}%" class="${rd < 60 ? 'warn' : ''}"></i></div><span>${rd}%</span></div></td><td class="num">${fmtD(b.expectedHarvest)}<div class="small ${d < 0 ? 'overdue' : 'muted'}">${d === 0 ? 'Today' : d < 0 ? `${-d} d late` : `in ${d} d`}</div></td>${actions ? `<td class="r">${can('harvest') ? `<button class="btn sm" data-act="harvest-record" data-id="${b.id}">Record</button>` : ''}</td>` : ''}</tr>`;
+    return `<tr class="click" data-act="batch" data-id="${esc(b.id)}" tabindex="0"><td><b>${esc(cropDef(b.crop).label)}</b><div class="small muted">${esc(b.id)} · zone ${esc(b.zone)}</div></td><td>${esc(ghName(b.ghId))}</td><td class="r num">${num(b.estKg)} kg</td><td><div class="ready"><div class="bar" style="flex:1"><i style="width:${rd}%" class="${rd < 60 ? 'warn' : ''}"></i></div><span>${rd}%</span></div></td><td class="num">${fmtD(b.expectedHarvest)}<div class="small ${d < 0 ? 'overdue' : 'muted'}">${d === 0 ? 'Today' : d < 0 ? `${-d} d late` : `in ${d} d`}</div></td>${actions ? `<td class="r">${can('harvest') ? `<button class="btn sm" data-act="harvest-record" data-id="${esc(b.id)}">Record</button>` : ''}</td>` : ''}</tr>`;
   }).join('')}</tbody></table></div>`;
 }
 function taskList(list) {
@@ -1358,80 +1938,153 @@ function taskList(list) {
   return `<div>${list.map(t => {
     const od = isOverdue(t), done = t.status === 'Done';
     return `<div class="task ${done ? 'done' : ''}">
-      <button class="check" data-act="task-toggle" data-id="${t.id}" aria-pressed="${done}" aria-label="${done ? 'Mark as not done' : 'Mark as done'}: ${esc(t.title)}">${ic('check')}</button>
-      <div style="min-width:0"><button class="t-title" data-act="task-edit" data-id="${t.id}" style="all:unset;cursor:pointer;font-weight:700">${esc(t.title)}</button>
-        <div class="t-meta"><span>${ic('user', 'small')}${esc(t.assignee)}</span><span>${ghById(t.ghId)?.name || ''}</span>${t.recurrence !== 'none' ? `<span>${ic('repeat')}${t.recurrence}</span>` : ''}${t.photo ? `<span>${ic('camera')}photo</span>` : ''}</div></div>
-      <div class="t-right"><span class="pri pri-${t.priority}">${t.priority}</span><span class="num ${od ? 'overdue' : 'muted'}">${od ? 'Overdue · ' : ''}${t.due !== dOff(0) ? fmtD(t.due) + ', ' : ''}${fmtT(t.time)}</span>${done ? '<span class="badge b-ok">Done</span>' : ''}</div></div>`;
+      <button class="check" data-act="task-toggle" data-id="${esc(t.id)}" aria-pressed="${done}" aria-label="${done ? 'Mark as not done' : 'Mark as done'}: ${esc(t.title)}">${ic('check')}</button>
+      <div style="min-width:0"><button class="t-title" data-act="task-edit" data-id="${esc(t.id)}" style="all:unset;cursor:pointer;font-weight:700">${esc(t.title)}</button>
+        <div class="t-meta"><span>${ic('user', 'small')}${esc(t.assignee)}</span><span>${esc(t.ghId ? ghName(t.ghId) : '')}</span>${t.recurrence !== 'none' ? `<span>${ic('repeat')}${esc(t.recurrence)}</span>` : ''}${t.photo ? `<span>${ic('camera')}photo</span>` : ''}</div></div>
+      <div class="t-right"><span class="pri pri-${t.priority}">${esc(t.priority)}</span><span class="num ${od ? 'overdue' : 'muted'}">${od ? 'Overdue · ' : ''}${t.due !== dOff(0) ? fmtD(t.due) + ', ' : ''}${fmtT(t.time)}</span>${done ? '<span class="badge b-ok">Done</span>' : ''}</div></div>`;
   }).join('')}</div>`.replace(/<svg class="ico small"/g, '<svg class="ico" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px"');
 }
 function trendCharts() {
-  const days = ui.trendRange, from = dOff(-days + 1);
+  const days = ui.trendRange, from = dOff(-days + 1), live = isLiveMode();
   const hs = harvests().filter(h => h.date >= from);
   const byWeek = days > 7;
   const keys = []; for (let d = -days + 1; d <= 0; d++) { const k = byWeek ? weekKey(dOff(d)) : dOff(d); if (!keys.includes(k)) keys.push(k); }
-  const crops = Object.keys(CROPS);
-  const ds = crops.map(c => ({ label: CROPS[c].label, data: keys.map(k => hs.filter(h => h.crop === c && (byWeek ? weekKey(h.date) : h.date) === k).reduce((s, h) => s + h.actualKg, 0)), backgroundColor: col(CROP_COLOR[c]), borderRadius: 4, stack: 'y' }));
-  const total = hs.reduce((s, h) => s + h.actualKg, 0);
-  const res = resourceSeries(days);
-  const water = res.reduce((s, r) => s + r.water, 0), kwh = res.reduce((s, r) => s + r.energy, 0);
-  return `<div class="grid g-2">
-    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Harvested yield</h3><span class="small muted num">${num(total)} kg in ${days} days · ${num(total / Math.max(1, water / 1000), 1)} kg per m³ water</span></div>
-      <div class="chart-box">${makeChart('cYield', { type: 'bar', aria: `Harvested yield by ${byWeek ? 'week' : 'day'} and crop, ${num(total)} kg total`, data: { labels: keys.map(k => byWeek ? 'Wk ' + fmtD(k) : fmtD(k)), datasets: ds }, options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'kg' } } } } })}</div></div>
-    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Resource use</h3><span class="small muted num">${num(water / 1000, 1)} m³ water · ${num(kwh)} kWh <span class="tag demo">Demo meters</span></span></div>
-      <div class="chart-box">${makeChart('cRes', { type: 'line', aria: 'Daily water and energy use', data: { labels: res.map(r => fmtD(r.date)), datasets: [
+  const cropsObj = cropsMap();
+  const crops = Object.keys(cropsObj);
+  const ds = crops.map(c => ({ label: cropsObj[c].label, data: keys.map(k => hs.filter(h => h.crop === c && (byWeek ? weekKey(h.date) : h.date) === k).reduce((s, h) => s + Number(h.actualKg), 0)), backgroundColor: col(cropColorVar(c)), borderRadius: 4, stack: 'y' }));
+  const total = hs.reduce((s, h) => s + Number(h.actualKg), 0);
+  const res = resourceSeriesForMode(days);
+  const water = res.reduce((s, r) => s + Number(r.water), 0), kwh = res.reduce((s, r) => s + Number(r.energy), 0);
+  const yieldSub = live && !hs.length
+    ? 'No harvest data yet'
+    : `${num(total)} kg in ${days} days${water > 0 ? ` · ${num(total / (water / 1000), 1)} kg per m³ water` : ''}`;
+  const yieldBody = live && !hs.length
+    ? empty('basket', 'No harvest data available yet', 'Recorded harvests in Live Data mode will appear here.')
+    : `<div class="chart-box">${makeChart('cYield', { type: 'bar', aria: `Harvested yield by ${byWeek ? 'week' : 'day'} and crop, ${num(total)} kg total`, data: { labels: keys.map(k => byWeek ? 'Wk ' + fmtD(k) : fmtD(k)), datasets: ds }, options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'kg' } } } } })}</div>`;
+  const resSub = live && !res.length
+    ? 'Waiting for meter data'
+    : `${num(water / 1000, 1)} m³ water · ${num(kwh)} kWh ${live ? '<span class="tag live">Live meters</span>' : '<span class="tag demo">Demo meters</span>'}`;
+  const resBody = live && !res.length
+    ? empty('gauge', 'Waiting for sensor data', 'Connect water flow and energy meters or log daily meter readings.', `<button class="btn primary" data-act="resource-new">${ic('edit')}Log meter reading</button>`)
+    : `<div class="chart-box">${makeChart('cRes', { type: 'line', aria: 'Daily water and energy use', data: { labels: res.map(r => fmtD(r.date)), datasets: [
         { label: 'Water (L/day)', data: res.map(r => r.water), borderColor: col('--c5'), backgroundColor: col('--c5') + '22', fill: true, tension: .35, pointRadius: 0, yAxisID: 'y', borderWidth: 2 },
         { label: 'Energy (kWh/day)', data: res.map(r => r.energy), borderColor: col('--c2'), tension: .35, pointRadius: 0, yAxisID: 'y1', borderWidth: 2 }] },
-        options: { interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }, y: { title: { display: true, text: 'Litres' } }, y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'kWh' } } } } })}</div></div>
+        options: { interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }, y: { title: { display: true, text: 'Litres' } }, y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'kWh' } } } } })}</div>`;
+  return `<div class="grid g-2">
+    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Harvested yield</h3><span class="small muted num">${yieldSub}</span></div>${yieldBody}</div>
+    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Resource use</h3><span class="small muted num">${resSub}</span></div>${resBody}</div>
   </div>`;
+}
+function resourceForm(prefillDate = '') {
+  const existing = window.HydrobotData ? window.HydrobotData.getLiveResourceSeries(90).slice().reverse() : [];
+  const targetPt = prefillDate ? existing.find(p => p.date === prefillDate) : null;
+  openModal({
+    title: 'Water & energy meter log', submitLabel: 'Save meter log', wide: true,
+    body: `<p class="muted">Record daily total water consumption (L) and energy usage (kWh) for Live Data performance trends.</p>
+      <div class="form-grid" style="margin-bottom:14px">
+        ${fld('Date', `<input id="rs-date" name="date" type="date" value="${esc(targetPt?.date || dOff(0))}" max="${dOff(0)}">`, 'date')}
+        ${fld('Water used (L)', `<input id="rs-water" name="water" type="number" min="0" step="0.1" inputmode="decimal" value="${targetPt ? esc(targetPt.water) : ''}" placeholder="e.g. 5200">`, 'water')}
+        ${fld('Energy used (kWh)', `<input id="rs-energy" name="energy" type="number" min="0" step="0.1" inputmode="decimal" value="${targetPt ? esc(targetPt.energy) : ''}" placeholder="e.g. 410">`, 'energy')}
+      </div>
+      ${existing.length ? `<h3 style="margin:12px 0 6px">Recorded days</h3><div class="tbl-wrap" style="max-height:200px;overflow:auto"><table><thead><tr><th>Date</th><th class="r">Water</th><th class="r">Energy</th><th></th></tr></thead><tbody>${existing.slice(0, 14).map(p => `<tr><td class="num">${fmtD(p.date)}</td><td class="r num">${num(p.water)} L</td><td class="r num">${num(p.energy)} kWh</td><td class="r"><button type="button" class="btn sm ghost" data-act="resource-pick" data-date="${esc(p.date)}" data-water="${p.water}" data-energy="${p.energy}">${ic('edit')}</button><button type="button" class="btn sm ghost" data-act="resource-delete" data-id="${esc(p.date)}" aria-label="Delete ${esc(p.date)}">${ic('trash')}</button></td></tr>`).join('')}</tbody></table></div>` : ''}`,
+    onOpen: m => {
+      m.addEventListener('click', async ev => {
+        const pick = ev.target.closest('[data-act="resource-pick"]');
+        if (pick) {
+          $('#rs-date', m).value = pick.dataset.date;
+          $('#rs-water', m).value = pick.dataset.water;
+          $('#rs-energy', m).value = pick.dataset.energy;
+          return;
+        }
+        const del = ev.target.closest('[data-act="resource-delete"]');
+        if (del) {
+          await Store.saveResourcePoint('delete', { date: del.dataset.id });
+          toast(`Removed meter log for ${del.dataset.id}.`);
+          resourceForm();
+        }
+      });
+    },
+    validate: d => ({
+      date: !d.date ? 'Choose a date.' : d.date > dOff(0) && 'Date cannot be in the future.',
+      water: !(d.water !== '' && Number(d.water) >= 0) && 'Enter water usage in litres (0 or more).',
+      energy: !(d.energy !== '' && Number(d.energy) >= 0) && 'Enter energy usage in kWh (0 or more).',
+    }),
+    submit: async d => {
+      await Store.saveResourcePoint('upsert', { date: d.date, water: +d.water, energy: +d.energy });
+      return `Meter log saved for ${fmtD(d.date)}.`;
+    }
+  });
 }
 
 /* ================= Plant Management ================= */
 function vPlants() {
-  const f = ui.plantF, q = f.q.toLowerCase();
-  const list = batches().filter(b => (!f.gh || b.ghId === f.gh) && (!f.stage || b.stage === f.stage) && (!q || `${b.id} ${b.crop} ${b.variety} ${b.zone}`.toLowerCase().includes(q))).sort((a, b) => (a.stage === 'Harvested') - (b.stage === 'Harvested') || a.expectedHarvest.localeCompare(b.expectedHarvest));
+  const f = ui.plantF, q = f.q.toLowerCase(), ghs = greenhouses();
+  const allBatches = batches();
+  const list = allBatches.filter(b => (!f.gh || b.ghId === f.gh) && (!f.stage || b.stage === f.stage) && (!q || `${b.id} ${b.crop} ${cropDef(b.crop).label} ${b.variety} ${b.zone}`.toLowerCase().includes(q))).sort((a, b) => (a.stage === 'Harvested') - (b.stage === 'Harvested') || a.expectedHarvest.localeCompare(b.expectedHarvest));
   const k = kpis();
-  return `${pageHead('Plant Management', 'Crop batches, greenhouse zones, growth stages and health observations.', can('batches') ? `<button class="btn primary" data-act="batch-new">${ic('plus')}Add crop batch</button>` : '')}
-  <div class="stats">${[['Active batches', k.batches], ['Plants growing', num(k.plants)], ['Average health', num(k.health, 1) + '%'], ['Harvested batches', batches().length - k.batches]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  const actions = can('batches') ? `<button class="btn" data-act="crop-manage">${ic('sprout')}Manage crops</button><button class="btn primary" data-act="batch-new">${ic('plus')}Add crop batch</button>` : '';
+  return `${pageHead('Plant Management', 'Crop batches, greenhouse zones, growth stages and health observations.', actions)}
+  <div class="stats">${[['Active batches', k.batches], ['Plants growing', num(k.plants)], ['Average health', k.plants ? num(k.health, 1) + '%' : '—'], ['Harvested batches', allBatches.length - k.batches]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   ${card('Crop batches', `
     <div class="toolbar" style="margin-bottom:12px">
       <label class="sr" for="pf-q">Search batches</label><input id="pf-q" class="input grow" type="search" placeholder="Search by batch, crop, variety or zone" value="${esc(f.q)}" data-filter="plantF.q">
-      <label class="sr" for="pf-gh">Greenhouse</label><select id="pf-gh" class="select" data-filter="plantF.gh"><option value="">All greenhouses</option>${GH.map(g => `<option value="${g.id}" ${f.gh === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select>
+      <label class="sr" for="pf-gh">Greenhouse</label><select id="pf-gh" class="select" data-filter="plantF.gh"><option value="">All greenhouses</option>${ghs.map(g => `<option value="${esc(g.id)}" ${f.gh === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>
       <label class="sr" for="pf-st">Growth stage</label><select id="pf-st" class="select" data-filter="plantF.stage"><option value="">All stages</option>${STAGES.map(s => `<option ${f.stage === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
     </div>
     ${list.length ? `<div class="tbl-wrap"><table><thead><tr><th>Batch</th><th>Crop</th><th>Location</th><th class="r">Plants</th><th>Planted</th><th>Stage</th><th>Health</th><th>Expected harvest</th></tr></thead><tbody>${list.map(b => `
-      <tr class="click" data-act="batch" data-id="${b.id}" tabindex="0"><td><b class="mono">${b.id}</b></td><td><b>${CROPS[b.crop].label}</b><div class="small muted">${esc(b.variety)}</div></td><td>${ghById(b.ghId).name}<div class="small muted">Zone ${esc(b.zone)}</div></td><td class="r num">${num(b.plants)}</td><td class="num">${fmtD(b.plantedOn)}</td><td><span class="badge ${b.stage === 'Ready' ? 'b-ok' : b.stage === 'Harvested' ? 'b-mute' : 'b-info'}">${b.stage}</span></td><td>${healthCell(b.health)}</td><td class="num">${b.stage === 'Harvested' ? '—' : fmtD(b.expectedHarvest)}</td></tr>`).join('')}</tbody></table></div>`
-      : empty('sprout', 'No batches match these filters', 'Clear the search or choose a different greenhouse or stage.', `<button class="btn" data-act="clear-plant-filters">Clear filters</button>`)}
-  `, { sub: `${list.length} of ${batches().length} batches` })}`;
+      <tr class="click" data-act="batch" data-id="${esc(b.id)}" tabindex="0"><td><b class="mono">${esc(b.id)}</b></td><td><b>${esc(cropDef(b.crop).label)}</b><div class="small muted">${esc(b.variety)}</div></td><td>${esc(ghName(b.ghId))}<div class="small muted">Zone ${esc(b.zone)}</div></td><td class="r num">${num(b.plants)}</td><td class="num">${fmtD(b.plantedOn)}</td><td><span class="badge ${b.stage === 'Ready' ? 'b-ok' : b.stage === 'Harvested' ? 'b-mute' : 'b-info'}">${esc(b.stage)}</span></td><td>${healthCell(b.health)}</td><td class="num">${b.stage === 'Harvested' ? '—' : fmtD(b.expectedHarvest)}</td></tr>`).join('')}</tbody></table></div>`
+      : allBatches.length
+        ? empty('sprout', 'No batches match these filters', 'Clear the search or choose a different greenhouse or stage.', `<button class="btn" data-act="clear-plant-filters">Clear filters</button>`)
+        : empty('sprout', 'No crop batches yet', 'Add your first crop batch in Live Data mode to begin tracking growth and yields.', can('batches') ? `<button class="btn primary" data-act="batch-new">${ic('plus')}Add crop batch</button>` : '')}
+  `, { sub: `${list.length} of ${allBatches.length} batches` })}`;
 }
 const healthSt = h => h >= 85 ? 'ok' : h >= 70 ? 'warn' : 'crit';
 const healthCell = h => `<div class="ready"><div class="bar" style="width:70px"><i class="${healthSt(h) === 'ok' ? '' : healthSt(h)}" style="width:${h}%"></i></div><span>${h}%</span></div>`;
 
 function batchDetail(id) {
   const b = Store.get('batches', id); if (!b) return toast('That batch no longer exists.', 'error');
-  const c = CROPS[b.crop], hs = harvests().filter(h => h.batchId === b.id);
+  const c = cropDef(b.crop), hs = harvests().filter(h => h.batchId === b.id);
   const obs = [...(b.observations || [])].sort((a, c) => c.date.localeCompare(a.date));
   openModal({ title: `${b.id} · ${c.label}`, wide: true, submitLabel: null, body: `
-    <div class="split">${badge(healthSt(b.health))}<span class="badge b-info">${b.stage}</span><span class="tag">${ghById(b.ghId).name}, zone ${esc(b.zone)}</span>${b.demo ? '<span class="tag demo">Sample record</span>' : ''}</div>
+    <div class="split">${badge(healthSt(b.health))}<span class="badge b-info">${esc(b.stage)}</span><span class="tag">${esc(ghName(b.ghId))}, zone ${esc(b.zone)}</span>${b.demo ? '<span class="tag demo">Sample record</span>' : ''}</div>
     <div class="grid g-2" style="gap:16px">
-      <dl class="kv"><dt>Variety</dt><dd>${esc(b.variety)}</dd><dt>Plants</dt><dd class="num">${num(b.plants)}</dd><dt>Planted</dt><dd>${fmtDL(b.plantedOn)}</dd><dt>Expected harvest</dt><dd>${fmtDL(b.expectedHarvest)} (${daysFrom(b.expectedHarvest) >= 0 ? 'in ' + daysFrom(b.expectedHarvest) + ' d' : -daysFrom(b.expectedHarvest) + ' d ago'})</dd><dt>Estimated yield</dt><dd class="num">${num(b.estKg)} kg${c.continuous ? ' per weekly pick' : ''}</dd><dt>Projected value</dt><dd class="num">${money(b.estKg * c.price)} <span class="tag proj">Projection</span></dd></dl>
+      <dl class="kv"><dt>Variety</dt><dd>${esc(b.variety)}</dd><dt>Plants</dt><dd class="num">${num(b.plants)}</dd><dt>Planted</dt><dd>${fmtDL(b.plantedOn)}</dd><dt>Expected harvest</dt><dd>${fmtDL(b.expectedHarvest)} (${daysFrom(b.expectedHarvest) >= 0 ? 'in ' + daysFrom(b.expectedHarvest) + ' d' : -daysFrom(b.expectedHarvest) + ' d ago'})</dd><dt>Estimated yield</dt><dd class="num">${num(b.estKg)} kg${c.continuous ? ' per weekly pick' : ''}</dd><dt>Projected value</dt><dd class="num">${money(b.estKg * (Number(c.price) || 0))} <span class="tag proj">Projection</span></dd></dl>
       <div><h3 style="margin-bottom:8px">Readiness</h3><div class="ready"><div class="bar" style="flex:1;height:10px"><i style="width:${readiness(b)}%"></i></div><span>${readiness(b)}%</span></div>
-      <p class="small muted" style="margin-top:8px">${c.label} cycle ≈ ${c.cycle} days. Health score ${b.health}%.</p>${b.notes ? `<p style="margin-top:8px">${esc(b.notes)}</p>` : ''}</div>
+      <p class="small muted" style="margin-top:8px">${esc(c.label)} cycle ≈ ${c.cycle} days. Health score ${b.health}%.</p>${b.notes ? `<p style="margin-top:8px">${esc(b.notes)}</p>` : ''}</div>
     </div>
-    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Health observations</h3><button class="btn sm" data-act="obs-new" data-id="${b.id}">${ic('plus')}Add observation</button></div>
+    <div><div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Health observations</h3><button class="btn sm" data-act="obs-new" data-id="${esc(b.id)}">${ic('plus')}Add observation</button></div>
       ${obs.length ? `<div class="timeline">${obs.map(o => `<div class="tl ${o.flag ? 'flag' : ''}"><div class="small muted">${fmtDL(o.date)} · ${esc(o.by)} · health ${o.health}%</div>${o.flag ? `<span class="badge b-crit" style="margin:4px 0">${esc(o.flag)}</span>` : ''}<p>${esc(o.note)}</p></div>`).join('')}</div>` : '<p class="muted small">No observations yet. Add the first one after your next walk-through.</p>'}
     </div>
     ${hs.length ? `<div><h3 style="margin-bottom:8px">Harvest records</h3>${harvestTable(hs)}</div>` : ''}`,
-    footer: `${can('batches') ? `<button type="button" class="btn" data-act="batch-delete" data-id="${b.id}">${ic('trash')}Delete</button><button type="button" class="btn" data-act="batch-edit" data-id="${b.id}">${ic('edit')}Edit batch</button>` : ''}${can('harvest') && b.stage !== 'Harvested' ? `<button type="button" class="btn primary" data-act="harvest-record" data-id="${b.id}">Record harvest</button>` : ''}<button type="button" class="btn" data-close>Close</button>` });
+    footer: `${can('batches') ? `<button type="button" class="btn" data-act="batch-delete" data-id="${esc(b.id)}">${ic('trash')}Delete</button><button type="button" class="btn" data-act="batch-edit" data-id="${esc(b.id)}">${ic('edit')}Edit batch</button>` : ''}${can('harvest') && b.stage !== 'Harvested' ? `<button type="button" class="btn primary" data-act="harvest-record" data-id="${esc(b.id)}">Record harvest</button>` : ''}<button type="button" class="btn" data-close>Close</button>` });
 }
 function batchForm(id) {
-  const b = id ? Store.get('batches', id) : { crop: 'Lettuce', variety: '', ghId: 'gh-a', zone: 'A1', plants: '', plantedOn: dOff(0), stage: 'Germination', health: 90, expectedHarvest: dOff(42), estKg: '', notes: '' };
-  const zoneOpts = ghId => ghById(ghId).zones.map(z => `<option ${z === b.zone ? 'selected' : ''}>${z}</option>`).join('');
+  const ghs = greenhouses();
+  if (!id && !ghs.length) {
+    toast('Add a greenhouse first before planting a crop batch.', 'error');
+    if (can('targets')) ghForm();
+    return;
+  }
+  const cropsObj = cropsMap();
+  const cropKeys = Object.keys(cropsObj);
+  const defCrop = cropKeys[0] || 'Lettuce';
+  const defGh = ghs[0] || { id: 'gh-a', zones: ['A1'] };
+  const b = id ? Store.get('batches', id) : { crop: defCrop, variety: '', ghId: defGh.id, zone: (defGh.zones && defGh.zones[0]) || 'Z1', plants: '', plantedOn: dOff(0), stage: 'Germination', health: 90, expectedHarvest: dOff(cropDef(defCrop).cycle || 42), estKg: '', notes: '' };
+  if (!b) return;
+  const zoneOpts = ghId => {
+    const zs = ghById(ghId)?.zones || (b.zone ? [b.zone] : ['Z1']);
+    return zs.map(z => `<option ${z === b.zone ? 'selected' : ''}>${esc(z)}</option>`).join('');
+  };
+  const ghOpts = ghs.some(g => g.id === b.ghId)
+    ? ghs
+    : [...ghs, { id: b.ghId, name: ghName(b.ghId), zones: [b.zone || 'Z1'] }];
+  const cropEntries = cropsObj[b.crop] ? Object.entries(cropsObj) : [...Object.entries(cropsObj), [b.crop, cropDef(b.crop)]];
   openModal({
     title: id ? `Edit ${b.id}` : 'Add crop batch', submitLabel: id ? 'Save changes' : 'Add batch',
     body: `<div class="form-grid">
-      ${fld('Crop', `<select id="f-crop" name="crop">${Object.entries(CROPS).map(([k, c]) => `<option value="${k}" ${b.crop === k ? 'selected' : ''}>${c.label}</option>`).join('')}</select>`, 'crop')}
+      ${fld('Crop', `<select id="f-crop" name="crop">${cropEntries.map(([k, c]) => `<option value="${esc(k)}" ${b.crop === k ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select>`, 'crop')}
       ${fld('Variety', `<input id="f-variety" name="variety" value="${esc(b.variety)}" placeholder="e.g. Butterhead “Rex”">`, 'variety')}
-      ${fld('Greenhouse', `<select id="f-gh" name="ghId">${GH.map(g => `<option value="${g.id}" ${b.ghId === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select>`, 'ghId')}
+      ${fld('Greenhouse', `<select id="f-gh" name="ghId">${ghOpts.map(g => `<option value="${esc(g.id)}" ${b.ghId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`, 'ghId')}
       ${fld('Zone', `<select id="f-zone" name="zone">${zoneOpts(b.ghId)}</select>`, 'zone')}
       ${fld('Plant count', `<input id="f-plants" name="plants" type="number" min="1" step="1" inputmode="numeric" value="${esc(b.plants)}">`, 'plants')}
       ${fld('Growth stage', `<select id="f-stage" name="stage">${STAGES.map(s => `<option ${b.stage === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`, 'stage')}
@@ -1442,8 +2095,8 @@ function batchForm(id) {
       <div class="full">${fld('Notes', `<textarea id="f-notes" name="notes">${esc(b.notes || '')}</textarea>`, 'notes')}</div></div>`,
     onOpen: m => {
       const crop = $('#f-crop', m), gh = $('#f-gh', m), pl = $('#f-planted', m), plants = $('#f-plants', m);
-      gh.onchange = () => { $('#f-zone', m).innerHTML = ghById(gh.value).zones.map(z => `<option>${z}</option>`).join(''); };
-      const suggest = () => { const c = CROPS[crop.value]; if (pl.value) $('#f-exp', m).value = iso(parseD(pl.value).getTime() + c.cycle * DAY); if (plants.value) $('#f-est', m).value = Math.round(plants.value * (c.continuous ? c.ypp : c.ypp)); };
+      gh.onchange = () => { const zs = ghById(gh.value)?.zones || ['Z1']; $('#f-zone', m).innerHTML = zs.map(z => `<option>${esc(z)}</option>`).join(''); };
+      const suggest = () => { const c = cropDef(crop.value); if (pl.value) $('#f-exp', m).value = iso(parseD(pl.value).getTime() + (c.cycle || 42) * DAY); if (plants.value) $('#f-est', m).value = Math.round(plants.value * (c.ypp || 0.15)); };
       crop.onchange = suggest; pl.onchange = suggest; plants.onchange = () => { if (!$('#f-est', m).value || !id) suggest(); };
     },
     validate: d => ({
@@ -1458,6 +2111,56 @@ function batchForm(id) {
       const doc = { ...(id ? b : { id: nextId('B', batches()), observations: [] }), ...d, plants: Number(d.plants), estKg: Number(d.estKg), health: Number(d.health) };
       await Store.put('batches', doc); return `${doc.id} ${id ? 'updated' : 'added'}.`;
     }
+  });
+}
+function cropsManagerModal() {
+  const list = Object.entries(cropsMap());
+  openModal({
+    title: 'Manage crop varieties & pricing', wide: true, submitLabel: null,
+    body: `${list.length ? `<div class="tbl-wrap"><table><thead><tr><th>Key</th><th>Label</th><th class="r">Cycle</th><th class="r">Price/kg</th><th class="r">pH</th><th>Picking</th><th></th></tr></thead><tbody>${list.map(([k, c]) => `<tr><td class="mono">${esc(k)}</td><td><b>${esc(c.label)}</b></td><td class="r num">${c.cycle} d</td><td class="r num">$${num(c.price, 2)}</td><td class="r num">${c.ph?.[0] ?? 5.5}–${c.ph?.[1] ?? 6.5}</td><td>${c.continuous ? '<span class="badge b-info">Continuous</span>' : '<span class="badge b-mute">Single</span>'}</td><td class="r"><button type="button" class="btn sm ghost" data-act="crop-edit" data-id="${esc(k)}">${ic('edit')}</button></td></tr>`).join('')}</tbody></table></div>` : empty('sprout', 'No crops defined yet', 'Add a crop variety with cycle days, wholesale price, and optimal pH/EC targets.')}`,
+    footer: `<button type="button" class="btn primary" data-act="crop-new">${ic('plus')}Add crop</button><button type="button" class="btn" data-close>Close</button>`
+  });
+}
+function cropForm(id) {
+  const existing = id ? cropDef(id) : null;
+  const c = existing || { id: '', label: '', cycle: 42, price: 6.0, ypp: 0.15, continuous: false, ph: [5.6, 6.2], ec: { Vegetative: [1.0, 1.6], Flowering: [1.4, 2.2], Fruiting: [1.6, 2.4] } };
+  const veg = c.ec?.Vegetative || [1.0, 1.6];
+  const fruit = c.ec?.Fruiting || c.ec?.Flowering || veg;
+  openModal({
+    title: id ? `Edit crop · ${c.label}` : 'Add crop', submitLabel: id ? 'Save crop' : 'Add crop',
+    body: `<div class="form-grid">
+      ${fld('Crop code / key', `<input id="cp-id" name="id" value="${esc(id || '')}" ${id ? 'readonly' : ''} placeholder="e.g. Kale or Cucumber">`, 'id')}
+      ${fld('Display name', `<input id="cp-label" name="label" value="${esc(c.label)}" placeholder="e.g. Lacinato Kale">`, 'label')}
+      ${fld('Growth cycle (days)', `<input id="cp-cycle" name="cycle" type="number" min="7" step="1" value="${c.cycle}">`, 'cycle')}
+      ${fld('Wholesale price ($/kg)', `<input id="cp-price" name="price" type="number" min="0" step="0.01" value="${c.price}">`, 'price')}
+      ${fld('Est. kg per plant', `<input id="cp-ypp" name="ypp" type="number" min="0.001" step="0.001" value="${c.ypp}">`, 'ypp')}
+      ${fld('Harvest type', `<select id="cp-cont" name="continuous"><option value="0" ${!c.continuous ? 'selected' : ''}>Single harvest</option><option value="1" ${c.continuous ? 'selected' : ''}>Continuous weekly picking</option></select>`, 'continuous')}
+      ${fld('Min pH', `<input id="cp-phlo" name="phLo" type="number" step="0.1" value="${c.ph?.[0] ?? 5.5}">`, 'phLo')}
+      ${fld('Max pH', `<input id="cp-phhi" name="phHi" type="number" step="0.1" value="${c.ph?.[1] ?? 6.5}">`, 'phHi')}
+      ${fld('Vegetative EC min', `<input id="cp-ecvlo" name="ecVegLo" type="number" step="0.1" value="${veg[0]}">`, 'ecVegLo')}
+      ${fld('Vegetative EC max', `<input id="cp-ecvhi" name="ecVegHi" type="number" step="0.1" value="${veg[1]}">`, 'ecVegHi')}
+      ${fld('Fruiting EC min', `<input id="cp-ecflo" name="ecFruitLo" type="number" step="0.1" value="${fruit[0]}">`, 'ecFruitLo')}
+      ${fld('Fruiting EC max', `<input id="cp-ecfhi" name="ecFruitHi" type="number" step="0.1" value="${fruit[1]}">`, 'ecFruitHi')}
+    </div>`,
+    validate: d => ({
+      id: !d.id.trim() && 'Enter a short crop key (no spaces preferred).',
+      label: d.label.trim().length < 2 && 'Enter a crop display name.',
+      cycle: !(Number(d.cycle) >= 7) && 'Enter a cycle of 7 days or more.',
+      price: !(Number(d.price) >= 0) && 'Enter a non-negative price per kg.',
+      ypp: !(Number(d.ypp) > 0) && 'Enter estimated yield per plant (> 0).',
+      phLo: !(Number(d.phLo) >= 3 && Number(d.phLo) < Number(d.phHi)) && 'Min pH must be lower than max pH.',
+    }),
+    submit: async d => {
+      const key = (id || d.id.trim()).replace(/[^A-Za-z0-9_-]/g, '');
+      const ph = [+d.phLo, +d.phHi], v = [+d.ecVegLo, +d.ecVegHi], fr = [+d.ecFruitLo, +d.ecFruitHi];
+      const doc = {
+        id: key, label: d.label.trim(), cycle: +d.cycle, price: +d.price, ypp: +d.ypp, continuous: d.continuous === '1',
+        ph, ec: { ...(c.ec || {}), Germination: [Math.max(0.2, +(v[0] * 0.6).toFixed(1)), v[0]], Seedling: [Math.max(0.4, +(v[0] * 0.8).toFixed(1)), v[0]], Vegetative: v, Flowering: fr, Fruiting: fr, Ready: v }
+      };
+      await Store.put('crops', doc);
+      return `Crop "${doc.label}" saved.`;
+    },
+    footer: id ? `<button type="button" class="btn" data-act="crop-delete" data-id="${esc(id)}">${ic('trash')}Delete</button>` : ''
   });
 }
 function nextId(prefix, list) { const n = list.map(x => parseInt(String(x.id).split('-')[1])).filter(Number.isFinite); return prefix + '-' + (Math.max(0, ...n) + 1); }
@@ -1479,14 +2182,65 @@ function obsForm(id) {
 
 /* ================= Greenhouses ================= */
 function vGreenhouses() {
-  return `${pageHead('Greenhouse Management', 'Climate, root-zone and reservoir monitoring for each greenhouse.', DEMO_TAG)}
-  <div class="notice">${ic('plug')}<div><b>No sensor devices are connected.</b> Readings below are simulated demo data so you can explore the workflow. Connecting an IoT gateway (MQTT or Modbus) requires an integration that is not available in this prototype.</div></div>
-  <div class="gh-grid">${GH.map(g => `<div class="card card-b" style="display:grid;gap:12px">${ghCard(g)}<dl class="kv"><dt>System</dt><dd>${g.system}</dd><dt>Growing area</dt><dd class="num">${g.area} m²</dd><dt>Active batches</dt><dd>${activeBatches().filter(b => b.ghId === g.id).map(b => b.id).join(', ') || 'None'}</dd></dl></div>`).join('')}</div>`;
+  const live = isLiveMode(), ghs = greenhouses();
+  const anyLive = live && ghs.some(g => readings(g.id) !== null);
+  const actions = `${dataModeTag()}${can('targets') ? `<button class="btn primary" data-act="gh-new">${ic('plus')}Add greenhouse</button>` : ''}`;
+  return `${pageHead('Greenhouse Management', 'Climate, root-zone and reservoir monitoring for each greenhouse.', actions)}
+  <div class="notice">${ic('plug')}<div>${live
+    ? `<b>Live Data mode active.</b> ${anyLive ? 'Showing active physical sensor feeds and manual meter logs.' : 'No physical sensor devices are reporting yet. Open any greenhouse to log manual meter readings or connect IoT sensors.'}`
+    : '<b>No sensor devices are connected.</b> Readings below are simulated demo data so you can explore the workflow. Connecting an IoT gateway (MQTT or Modbus) requires an integration that is not available in this prototype.'}</div></div>
+  ${ghs.length
+    ? `<div class="gh-grid">${ghs.map(g => `<div class="card card-b" style="display:grid;gap:12px">${ghCard(g)}<dl class="kv"><dt>System</dt><dd>${esc(g.system)}</dd><dt>Growing area</dt><dd class="num">${num(g.area)} m²</dd><dt>Reservoir</dt><dd class="num">${num(g.reservoirLiters || 1800)} L</dd><dt>Active batches</dt><dd>${activeBatches().filter(b => b.ghId === g.id).map(b => esc(b.id)).join(', ') || 'None'}</dd></dl>${can('targets') ? `<div class="toolbar"><button class="btn sm" data-act="gh-edit" data-id="${esc(g.id)}">${ic('edit')}Edit greenhouse</button></div>` : ''}</div>`).join('')}</div>`
+    : `<div class="card">${empty('house', 'No greenhouses configured yet', 'Create your first greenhouse bay to start tracking telemetry, target ranges, and crop zones.', can('targets') ? `<button class="btn primary" data-act="gh-new">${ic('plus')}Add greenhouse</button>` : '')}</div>`}`;
+}
+function ghForm(id) {
+  if (!can('targets')) return toast('Managing greenhouses is not available for this role.', 'error');
+  const existing = id ? ghById(id) : null;
+  const cropsObj = cropsMap();
+  const defCrop = Object.keys(cropsObj)[0] || 'Lettuce';
+  const g = existing || { name: '', code: '', system: 'NFT channels', area: 300, reservoirLiters: 1800, zones: ['Z1', 'Z2'], main: defCrop };
+  openModal({
+    title: id ? `Edit ${g.name}` : 'Add greenhouse', submitLabel: id ? 'Save greenhouse' : 'Create greenhouse',
+    body: `<div class="form-grid">
+      ${fld('Greenhouse name', `<input id="gh-name" name="name" value="${esc(g.name)}" placeholder="e.g. Greenhouse A">`, 'name')}
+      ${fld('Short code', `<input id="gh-code" name="code" value="${esc(g.code)}" placeholder="e.g. A or E">`, 'code')}
+      ${fld('Hydroponic system', `<input id="gh-sys" name="system" list="sysList" value="${esc(g.system)}" placeholder="e.g. NFT channels"><datalist id="sysList"><option value="NFT channels"><option value="Dutch buckets"><option value="Deep water culture"><option value="Vertical NFT towers"><option value="Ebb & flow"></datalist>`, 'system')}
+      ${fld('Primary crop', `<select id="gh-main" name="main">${Object.entries(cropsObj).map(([k, c]) => `<option value="${esc(k)}" ${g.main === k ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select>`, 'main')}
+      ${fld('Growing area (m²)', `<input id="gh-area" name="area" type="number" min="1" step="1" value="${esc(g.area)}">`, 'area')}
+      ${fld('Reservoir capacity (L)', `<input id="gh-res" name="reservoirLiters" type="number" min="50" step="10" value="${esc(g.reservoirLiters || 1800)}">`, 'reservoirLiters')}
+      <div class="full">${fld('Growing zones (comma-separated)', `<input id="gh-zones" name="zonesStr" value="${esc((g.zones || []).join(', '))}" placeholder="e.g. E1, E2, E3">`, 'zonesStr')}</div>
+    </div>`,
+    validate: d => ({
+      name: d.name.trim().length < 2 && 'Enter a greenhouse name.',
+      code: !d.code.trim() && 'Enter a short code (e.g. A, B, E).',
+      system: !d.system.trim() && 'Enter the hydroponic system type.',
+      area: !(Number(d.area) > 0) && 'Enter growing area in m² (> 0).',
+      reservoirLiters: !(Number(d.reservoirLiters) >= 50) && 'Enter reservoir capacity in litres (50 or more).',
+      zonesStr: !d.zonesStr.split(',').map(s => s.trim()).filter(Boolean).length && 'Enter at least one zone name.',
+    }),
+    submit: async d => {
+      const code = d.code.trim().toUpperCase().slice(0, 6);
+      const zones = [...new Set(d.zonesStr.split(',').map(s => s.trim()).filter(Boolean))];
+      const newId = id || ('gh-' + code.toLowerCase().replace(/[^a-z0-9]+/g, '') + '-' + Date.now().toString(36).slice(-3));
+      const doc = { ...(existing || {}), id: newId, code, name: d.name.trim(), system: d.system.trim(), area: +d.area, reservoirLiters: +d.reservoirLiters, zones, main: d.main };
+      await Store.put('greenhouses', doc);
+      if (!ui.nutGh) ui.nutGh = doc.id;
+      return `${doc.name} ${id ? 'updated' : 'created'}.`;
+    },
+    footer: id ? `<button type="button" class="btn" data-act="gh-delete" data-id="${esc(id)}">${ic('trash')}Delete</button>` : ''
+  });
 }
 function vGhDetail(id) {
-  const g = ghById(id), r = readings(id), t = targets(id), st = ghStatus(id), s = sensorDef(ui.ghMetric);
+  const g = ghById(id);
+  if (!g) {
+    return `${pageHead('Greenhouse not found', '', `<a class="btn primary" href="#greenhouses">All greenhouses</a>`, `<div class="crumbs"><a href="#greenhouses">Greenhouses</a>${ic('chev')}<span>Missing</span></div>`)}
+    <div class="card">${empty('house', 'This greenhouse could not be found', 'It may have been deleted or created in the other data mode.', `<a class="btn primary" href="#greenhouses">Return to Greenhouses</a>`)}</div>`;
+  }
+  const r = readings(id), t = targets(id), st = ghStatus(id), s = sensorDef(ui.ghMetric), live = isLiveMode();
+  const meta = readingMeta(id);
   const hist = history(id, s.k, ui.ghRange);
-  const mr = manualReading(id);
+  const mrs = manualReadingsForGh(id);
+  const mr = mrs[0];
   const remoteCmds = (!AuthState.isDemoAuth && AuthState.equipmentCommands.length)
     ? AuthState.equipmentCommands
         .filter(c => c.farm_id === AuthState.currentFarmId && (!c.device || String(c.device).startsWith(`${id}:`)))
@@ -1500,25 +2254,52 @@ function vGhDetail(id) {
   const localCmds = Store.all('commands').filter(c => c.ghId === id);
   const cmds = (remoteCmds.length ? remoteCmds : localCmds).sort((a, b) => b.at - a.at).slice(0, 6);
   const fmtX = at => ui.ghRange === '24h' ? new Date(at).toLocaleTimeString(undefined, { hour: 'numeric' }) : new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  return `${pageHead(`${g.name} ${badge(st)}`, `${esc(ghCrops(id).join(', ') || 'No active crop')} · ${g.system} · ${g.area} m² · ${num(ghPlants(id))} plants`, `${DEMO_TAG}<span class="tag">Last update ${new Date(Date.now() - READ_AT[id] * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>`, `<div class="crumbs"><a href="#greenhouses">Greenhouses</a>${ic('chev')}<span>${g.name}</span></div>`)}
-  <section class="readings" aria-label="Current readings">${SENSORS.map(x => { const ms = metricStatus(r[x.k], t[x.k]); return `<button class="card reading" style="text-align:left;cursor:pointer;${ui.ghMetric === x.k ? 'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)' : ''}" data-seg="ghMetric" data-val="${x.k}" aria-pressed="${ui.ghMetric === x.k}">
-    <span class="lbl"><span>${x.label}</span>${badge(ms)}</span><span class="val">${num(r[x.k], x.dec)}<small>${x.unit}</small></span><span class="small muted">Target ${t[x.k][0]}–${t[x.k][1]} ${x.unit}</span></button>`; }).join('')}</section>
-  ${mr ? `<div class="notice">${ic('info')}<div>Latest manual meter reading: pH <b>${mr.ph}</b>, EC <b>${mr.ec} mS/cm</b> by ${esc(mr.by)} on ${fmtDT(mr.at)}. Used by Crop Nutrition.</div></div>` : ''}
-  ${card(`${s.label} history`, `<div class="chart-box tall">${makeChart('cGh', { type: 'line', aria: `${s.label} over ${ui.ghRange}`, data: { labels: hist.map(p => fmtX(p.at)), datasets: [
+  const lastUpdateTag = !live
+    ? `<span class="tag">${READ_AT[id] != null ? `Last update ${new Date(Date.now() - READ_AT[id] * 60000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : meta?.lastAt ? `Last update ${new Date(meta.lastAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : 'Demo ready'}</span>`
+    : meta?.lastAt
+      ? `<span class="tag">Last update ${new Date(meta.lastAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>`
+      : '<span class="tag">Waiting for sensor data</span>';
+  const histBody = live && !hist.length
+    ? empty('trend', 'No sensor history available yet', `Waiting for live ${s.label.toLowerCase()} readings or manual meter logs for ${g.name}.`)
+    : `<div class="chart-box tall">${makeChart('cGh', { type: 'line', aria: `${s.label} over ${ui.ghRange}`, data: { labels: hist.map(p => fmtX(p.at)), datasets: [
       { label: s.label + (s.unit ? ` (${s.unit})` : ''), data: hist.map(p => p.v), borderColor: col('--accent'), backgroundColor: col('--accent') + '1f', fill: true, tension: .35, pointRadius: (c) => c.dataIndex === hist.length - 1 ? 4 : 0, borderWidth: 2 },
       { label: 'Target min', data: hist.map(() => t[s.k][0]), borderColor: col('--muted'), borderDash: [5, 5], pointRadius: 0, borderWidth: 1.2, fill: false },
       { label: 'Target max', data: hist.map(() => t[s.k][1]), borderColor: col('--muted'), borderDash: [5, 5], pointRadius: 0, borderWidth: 1.2, fill: false }] },
-      options: { interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: {} } } })}</div>`,
-    { sub: 'Select a reading above to change the metric · demo data', actions: seg('ghRange', [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']], ui.ghRange, 'History range') })}
+      options: { interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: {} } } })}</div>`;
+  const fmtMrSummary = rec => SENSORS.filter(sn => rec[sn.k] != null && rec[sn.k] !== '').map(sn => `${sn.k.toUpperCase()} ${num(rec[sn.k], sn.dec)}${sn.unit ? ' ' + sn.unit : ''}`).join(' · ');
+  return `${pageHead(`${esc(g.name)} ${badge(st)}`, `${esc(ghCrops(id).join(', ') || 'No active crop')} · ${esc(g.system)} · ${num(g.area)} m² · ${num(g.reservoirLiters || 1800)} L tank · ${num(ghPlants(id))} plants`, `${dataModeTag()}${lastUpdateTag}${can('targets') ? `<button class="btn sm" data-act="gh-edit" data-id="${esc(id)}">${ic('edit')}Edit greenhouse</button>` : ''}`, `<div class="crumbs"><a href="#greenhouses">Greenhouses</a>${ic('chev')}<span>${esc(g.name)}</span></div>`)}
+  <section class="readings" aria-label="Current readings">${SENSORS.map(x => {
+    const val = r?.[x.k];
+    const hasVal = val !== null && val !== undefined && Number.isFinite(Number(val));
+    const ms = hasVal ? metricStatus(val, t[x.k]) : 'nodata';
+    return `<button class="card reading" style="text-align:left;cursor:pointer;${ui.ghMetric === x.k ? 'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)' : ''}" data-seg="ghMetric" data-val="${x.k}" aria-pressed="${ui.ghMetric === x.k}">
+    <span class="lbl"><span>${x.label}</span>${badge(ms)}</span><span class="val">${hasVal ? `${num(val, x.dec)}<small>${x.unit}</small>` : '<span class="muted">—</span>'}</span><span class="small muted">Target ${t[x.k][0]}–${t[x.k][1]} ${x.unit}</span></button>`;
+  }).join('')}</section>
+  ${mr ? `<div class="notice">${ic('info')}<div>Latest manual reading: <b>${esc(fmtMrSummary(mr) || 'Logged')}</b> by ${esc(mr.by)} on ${fmtDT(mr.at)}.</div></div>` : ''}
+  ${card(`${s.label} history`, histBody,
+    { sub: `Select a reading above to change the metric · ${live ? 'live data' : 'demo data'}`, actions: seg('ghRange', [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']], ui.ghRange, 'History range') })}
   <div class="grid g-2">
-    ${card('Target ranges', can('targets') ? `<form id="targetsForm" data-gh="${id}" novalidate><div class="tbl-wrap"><table><thead><tr><th>Reading</th><th>Min</th><th>Max</th></tr></thead><tbody>${SENSORS.map(x => `<tr><td><b>${x.label}</b><div class="small muted">${x.unit || 'unitless'}</div></td><td><label class="sr" for="t-${x.k}-lo">${x.label} minimum</label><input class="input" style="width:100px" id="t-${x.k}-lo" name="${x.k}-lo" type="number" step="any" value="${t[x.k][0]}"></td><td><label class="sr" for="t-${x.k}-hi">${x.label} maximum</label><input class="input" style="width:100px" id="t-${x.k}-hi" name="${x.k}-hi" type="number" step="any" value="${t[x.k][1]}"></td></tr>`).join('')}</tbody></table></div><p class="err" id="targetsErr" role="alert"></p><div class="toolbar" style="margin-top:10px"><button class="btn primary" type="submit">Save targets</button><button class="btn" type="button" data-act="targets-reset" data-id="${id}">Restore defaults</button></div></form>`
+    ${card('Target ranges', can('targets') ? `<form id="targetsForm" data-gh="${esc(id)}" novalidate><div class="tbl-wrap"><table><thead><tr><th>Reading</th><th>Min</th><th>Max</th></tr></thead><tbody>${SENSORS.map(x => `<tr><td><b>${x.label}</b><div class="small muted">${x.unit || 'unitless'}</div></td><td><label class="sr" for="t-${x.k}-lo">${x.label} minimum</label><input class="input" style="width:100px" id="t-${x.k}-lo" name="${x.k}-lo" type="number" step="any" value="${t[x.k][0]}"></td><td><label class="sr" for="t-${x.k}-hi">${x.label} maximum</label><input class="input" style="width:100px" id="t-${x.k}-hi" name="${x.k}-hi" type="number" step="any" value="${t[x.k][1]}"></td></tr>`).join('')}</tbody></table></div><p class="err" id="targetsErr" role="alert"></p><div class="toolbar" style="margin-top:10px"><button class="btn primary" type="submit">Save targets</button><button class="btn" type="button" data-act="targets-reset" data-id="${esc(id)}">Restore defaults</button></div></form>`
       : `<div class="tbl-wrap"><table><tbody>${SENSORS.map(x => `<tr><td>${x.label}</td><td class="num r">${t[x.k][0]}–${t[x.k][1]} ${x.unit}</td></tr>`).join('')}</tbody></table></div>${noPerm('Editing target ranges')}`,
       { sub: 'Status badges and alerts use these ranges' })}
     <div class="grid" style="gap:20px;align-content:start">
-    ${card('Sensor connections', `<div class="tbl-wrap"><table><thead><tr><th>Sensor</th><th>Status</th><th>Last update</th></tr></thead><tbody>${SENSORS.map(x => `<tr><td><b>${x.label}</b><div class="small muted">${x.model}</div></td><td><span class="badge b-mute">Simulated · not connected</span></td><td class="num small">${READ_AT[id]} min ago (demo)</td></tr>`).join('')}</tbody></table></div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn" data-act="reading-new" data-id="${id}">${ic('edit')}Log manual pH / EC reading</button><button class="btn" data-act="integration" data-id="sensor gateway">${ic('plug')}Connect devices</button></div>`)}
+    ${card('Sensor connections', `<div class="tbl-wrap"><table><thead><tr><th>Sensor</th><th>Status</th><th>Last update</th></tr></thead><tbody>${SENSORS.map(x => {
+      if (!live && READ_AT[id] != null) {
+        return `<tr><td><b>${x.label}</b><div class="small muted">${x.model}</div></td><td><span class="badge b-mute">Simulated · not connected</span></td><td class="num small">${READ_AT[id]} min ago (demo)</td></tr>`;
+      }
+      const hasVal = r && r[x.k] !== null && r[x.k] !== undefined && Number.isFinite(Number(r[x.k]));
+      const metricAt = meta?.updatedAtByMetric?.[x.k];
+      const isManual = mr && mr[x.k] != null && (!metricAt || metricAt === mr.at);
+      const stBadge = hasVal
+        ? (isManual ? '<span class="badge b-info">Manual meter log</span>' : '<span class="badge b-ok">Connected</span>')
+        : '<span class="badge b-nodata">Waiting for sensor</span>';
+      const tsCell = hasVal && metricAt ? fmtDT(metricAt) : hasVal && mr?.at ? fmtDT(mr.at) : 'No data yet';
+      return `<tr><td><b>${x.label}</b><div class="small muted">${x.model}</div></td><td>${stBadge}</td><td class="num small muted">${tsCell}</td></tr>`;
+    }).join('')}</tbody></table></div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn" data-act="reading-new" data-id="${esc(id)}">${ic('edit')}Log manual reading</button><button class="btn" data-act="integration" data-id="sensor gateway">${ic('plug')}Connect devices</button></div>
+      ${mrs.length ? `<h3 style="margin:14px 0 6px">Manual reading logs</h3><div class="tbl-wrap"><table><tbody>${mrs.slice(0, 6).map(rec => `<tr><td class="small num">${fmtDT(rec.at)}</td><td class="small">${esc(fmtMrSummary(rec))}<div class="muted">${esc(rec.by)}</div></td><td class="r"><button type="button" class="btn sm ghost" data-act="reading-edit" data-id="${esc(rec.id)}" aria-label="Edit reading">${ic('edit')}</button><button type="button" class="btn sm ghost" data-act="reading-delete" data-id="${esc(rec.id)}" aria-label="Delete reading">${ic('trash')}</button></td></tr>`).join('')}</tbody></table></div>` : ''}`)}
     ${card('Equipment controls', `<div class="notice warn" style="margin-bottom:12px">${ic('alert')}<div>Every command needs your explicit confirmation. No controller is connected, so commands are logged${!AuthState.isDemoAuth ? ' to Supabase' : ''} but <b>not sent</b> to equipment.</div></div>
-      <div style="display:grid;gap:8px">${DEVICES.map(d => `<div class="equip-row"><div class="split">${ic(d.icon)}<div><b>${d.label}</b><div class="small muted">${d.action}</div></div></div><button class="btn sm" data-act="command" data-gh="${id}" data-id="${d.k}" ${can('commands') ? '' : 'disabled title="Not available for Farm Worker role"'}>${ic('power')}Send command…</button></div>`).join('')}</div>
+      <div style="display:grid;gap:8px">${DEVICES.map(d => `<div class="equip-row"><div class="split">${ic(d.icon)}<div><b>${d.label}</b><div class="small muted">${d.action}</div></div></div><button class="btn sm" data-act="command" data-gh="${esc(id)}" data-id="${d.k}" ${can('commands') ? '' : 'disabled title="Not available for Farm Worker role"'}>${ic('power')}Send command…</button></div>`).join('')}</div>
       ${cmds.length ? `<h3 style="margin:14px 0 6px">Command log</h3><div class="tbl-wrap"><table><tbody>${cmds.map(c => `<tr><td class="small num">${fmtDT(c.at)}</td><td class="small">${esc(c.label)}<div class="muted">${esc(c.by)}</div></td><td><span class="badge ${c.status === 'queued' ? 'b-ok' : 'b-warn'}">${c.status === 'queued' ? 'Queued' : 'Not sent'}</span></td></tr>`).join('')}</tbody></table></div>` : ''}`)}
     </div>
   </div>
@@ -1526,9 +2307,10 @@ function vGhDetail(id) {
 }
 function commandConfirm(ghId, devKey) {
   const g = ghById(ghId), d = DEVICES.find(x => x.k === devKey);
+  if (!g || !d) return;
   openModal({
     title: 'Confirm equipment command', submitLabel: 'Confirm and send', danger: true,
-    body: `<p>You are about to send this command:</p><dl class="kv"><dt>Greenhouse</dt><dd>${g.name}</dd><dt>Equipment</dt><dd>${d.label}</dd><dt>Action</dt><dd>${d.action}</dd></dl>
+    body: `<p>You are about to send this command:</p><dl class="kv"><dt>Greenhouse</dt><dd>${esc(g.name)}</dd><dt>Equipment</dt><dd>${esc(d.label)}</dd><dt>Action</dt><dd>${esc(d.action)}</dd></dl>
       <div class="notice warn">${ic('alert')}<div><b>No controller integration is connected.</b> Confirming records the request in the command log, but nothing will reach the equipment. Use the manual controls in the greenhouse.</div></div>
       <label class="split" style="font-weight:600"><input type="checkbox" id="cmdAck" name="ack" style="width:18px;height:18px"> I have checked that nobody is working on this equipment.</label><p class="err" id="err-ack"></p>`,
     validate: dd => ({ ack: !dd.ack && 'Tick the safety check before sending a command.' }),
@@ -1543,27 +2325,60 @@ function commandConfirm(ghId, devKey) {
     }
   });
 }
-function readingForm(ghId) {
+function readingForm(ghId, readingId = null) {
+  const existing = readingId ? Store.get('readings', readingId) : null;
+  const targetGh = existing?.ghId || ghId;
   openModal({
-    title: `Manual meter reading · ${ghById(ghId).name}`, submitLabel: 'Save reading',
-    body: `<p class="muted">Record pH and EC from a handheld meter. Crop Nutrition uses the latest manual reading when it is newer than the demo sensor value.</p><div class="form-grid">${fld('pH', `<input id="r-ph" name="ph" type="number" step="0.01" min="0" max="14" inputmode="decimal">`, 'ph')}${fld('EC (mS/cm)', `<input id="r-ec" name="ec" type="number" step="0.01" min="0" max="10" inputmode="decimal">`, 'ec')}</div>`,
-    validate: d => ({ ph: !(d.ph !== '' && +d.ph >= 3 && +d.ph <= 9) && 'Enter a pH between 3 and 9.', ec: !(d.ec !== '' && +d.ec >= 0 && +d.ec <= 6) && 'Enter an EC between 0 and 6 mS/cm.' }),
-    submit: async d => { await Store.put('readings', { id: uid('R'), ghId, ph: +(+d.ph).toFixed(2), ec: +(+d.ec).toFixed(2), at: Date.now(), by: currentUser().name }); return 'Reading saved.'; }
+    title: `${existing ? 'Edit' : 'Log'} manual reading · ${ghName(targetGh)}`, submitLabel: existing ? 'Save changes' : 'Save reading',
+    body: `<p class="muted">Enter any handheld meter or spot-check measurements. Leave unknown sensors blank.</p><div class="form-grid">
+      ${fld('pH', `<input id="r-ph" name="ph" type="number" step="0.01" min="0" max="14" inputmode="decimal" value="${existing?.ph ?? ''}">`, 'ph')}
+      ${fld('EC (mS/cm)', `<input id="r-ec" name="ec" type="number" step="0.01" min="0" max="10" inputmode="decimal" value="${existing?.ec ?? ''}">`, 'ec')}
+      ${fld('Air temp (°C)', `<input id="r-temp" name="temp" type="number" step="0.1" inputmode="decimal" value="${existing?.temp ?? ''}">`, 'temp')}
+      ${fld('Humidity (%)', `<input id="r-hum" name="hum" type="number" step="1" min="0" max="100" inputmode="numeric" value="${existing?.hum ?? ''}">`, 'hum')}
+      ${fld('CO₂ (ppm)', `<input id="r-co2" name="co2" type="number" step="10" min="0" inputmode="numeric" value="${existing?.co2 ?? ''}">`, 'co2')}
+      ${fld('Water temp (°C)', `<input id="r-wt" name="wt" type="number" step="0.1" inputmode="decimal" value="${existing?.wt ?? ''}">`, 'wt')}
+      ${fld('Reservoir level (%)', `<input id="r-res" name="res" type="number" step="1" min="0" max="100" inputmode="numeric" value="${existing?.res ?? ''}">`, 'res')}
+    </div>`,
+    validate: d => {
+      const hasAny = SENSORS.some(s => d[s.k] !== '' && d[s.k] !== undefined && Number.isFinite(Number(d[s.k])));
+      const errs = {};
+      if (!hasAny) errs.ph = 'Enter at least one measurement.';
+      if (d.ph !== '' && (+d.ph < 3 || +d.ph > 9)) errs.ph = 'Enter a pH between 3 and 9.';
+      if (d.ec !== '' && (+d.ec < 0 || +d.ec > 6)) errs.ec = 'Enter an EC between 0 and 6 mS/cm.';
+      if (d.hum !== '' && (+d.hum < 0 || +d.hum > 100)) errs.hum = 'Humidity must be 0–100%.';
+      if (d.res !== '' && (+d.res < 0 || +d.res > 100)) errs.res = 'Reservoir level must be 0–100%.';
+      return errs;
+    },
+    submit: async d => {
+      const payload = { id: existing ? existing.id : uid('R'), ghId: targetGh, at: existing ? existing.at : Date.now(), by: currentUser().name };
+      SENSORS.forEach(s => {
+        if (d[s.k] !== '' && d[s.k] !== undefined && Number.isFinite(Number(d[s.k]))) {
+          payload[s.k] = +Number(d[s.k]).toFixed(s.dec);
+        }
+      });
+      await Store.put('readings', payload);
+      return existing ? 'Reading updated.' : 'Reading saved.';
+    },
+    footer: existing ? `<button type="button" class="btn" data-act="reading-delete" data-id="${esc(existing.id)}">${ic('trash')}Delete</button>` : ''
   });
 }
 
 /* ================= Harvest ================= */
 function vHarvest() {
-  const hs = harvests(), last90 = hs.filter(h => h.date >= dOff(-90));
+  const hs = harvests(), last90 = hs.filter(h => h.date >= dOff(-90)), live = isLiveMode();
   const act = activeBatches().sort((a, b) => a.expectedHarvest.localeCompare(b.expectedHarvest));
-  const acc = last90.length ? last90.reduce((s, h) => s + h.actualKg, 0) / last90.reduce((s, h) => s + h.estKg, 0) * 100 : 0;
-  const gradeA = last90.length ? last90.filter(h => h.grade === 'A').length / last90.length * 100 : 0;
+  const estSum = last90.reduce((s, h) => s + h.estKg, 0);
+  const acc = last90.length && estSum > 0 ? last90.reduce((s, h) => s + h.actualKg, 0) / estSum * 100 : null;
+  const gradeA = last90.length ? last90.filter(h => h.grade === 'A').length / last90.length * 100 : null;
   const recent = hs.slice(0, 12).reverse();
-  return `${pageHead('Harvest Management', 'Plan harvests, track readiness and record actual yield and quality.', '')}
-  <div class="stats">${[['Harvested, last 90 days', num(last90.reduce((s, h) => s + h.actualKg, 0)) + ' kg'], ['Actual vs estimate', num(acc, 1) + '%'], ['Grade A share', num(gradeA, 0) + '%'], ['Ready within 7 days', act.filter(b => daysFrom(b.expectedHarvest) <= 7).length + ' batches']].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  const evaBody = live && !recent.length
+    ? empty('basket', 'No harvest records yet', 'Recorded harvests in Live Data mode will be compared against estimates here.')
+    : `<div class="chart-box">${makeChart('cEva', { type: 'bar', aria: 'Estimated versus actual yield for the last 12 harvests', data: { labels: recent.map(h => `${h.id}`), datasets: [{ label: 'Estimated kg', data: recent.map(h => h.estKg), backgroundColor: col('--line'), borderRadius: 4 }, { label: 'Actual kg', data: recent.map(h => h.actualKg), backgroundColor: col('--accent'), borderRadius: 4 }] }, options: { scales: { x: { grid: { display: false }, ticks: { maxRotation: 60, font: { size: 10 } } }, y: {} } } })}</div><div class="legend" style="margin-top:8px"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Planned harvest</span><span><i style="background:var(--card);border:1px solid var(--line)"></i>Recorded harvest</span></div>`;
+  return `${pageHead('Harvest Management', 'Plan harvests, track readiness and record actual yield and quality.', can('harvest') ? `<button class="btn primary" data-act="harvest-new">${ic('plus')}Log harvest</button>` : '')}
+  <div class="stats">${[['Harvested, last 90 days', num(last90.reduce((s, h) => s + Number(h.actualKg), 0)) + ' kg'], ['Actual vs estimate', acc !== null ? num(acc, 1) + '%' : '—'], ['Grade A share', gradeA !== null ? num(gradeA, 0) + '%' : '—'], ['Ready within 7 days', act.filter(b => daysFrom(b.expectedHarvest) <= 7).length + ' batches']].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   <div class="grid g-main">
     ${card('Harvest calendar', calendar(), { actions: `<button class="btn sm" data-act="cal-prev" aria-label="Previous month">${ic('left')}</button><b class="cal-title">${ui.calMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><button class="btn sm" data-act="cal-next" aria-label="Next month">${ic('chev')}</button><button class="btn sm" data-act="cal-today">Today</button>` })}
-    ${card('Estimated vs actual', `<div class="chart-box">${makeChart('cEva', { type: 'bar', aria: 'Estimated versus actual yield for the last 12 harvests', data: { labels: recent.map(h => `${h.id}`), datasets: [{ label: 'Estimated kg', data: recent.map(h => h.estKg), backgroundColor: col('--line'), borderRadius: 4 }, { label: 'Actual kg', data: recent.map(h => h.actualKg), backgroundColor: col('--accent'), borderRadius: 4 }] }, options: { scales: { x: { grid: { display: false }, ticks: { maxRotation: 60, font: { size: 10 } } }, y: {} } } })}</div><div class="legend" style="margin-top:8px"><span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>Planned harvest</span><span><i style="background:var(--card);border:1px solid var(--line)"></i>Recorded harvest</span></div>`, { sub: 'Last 12 recorded harvests' })}
+    ${card('Estimated vs actual', evaBody, { sub: 'Last 12 recorded harvests' })}
   </div>
   ${card('Readiness tracking', pipelineTable(act, true), { sub: 'All active batches, soonest first' })}
   ${card('Harvest records', harvestTable(hs.slice(0, 25)), { sub: `Showing ${Math.min(25, hs.length)} of ${hs.length} records` })}`;
@@ -1577,34 +2392,99 @@ function calendar() {
     const d = new Date(first.getTime() + i * DAY); d.setHours(0, 0, 0, 0); const k = iso(d);
     if (i >= 35 && d.getMonth() !== m.getMonth()) break;
     const evP = plan.filter(p => p.date === k), evH = hs.filter(h => h.date === k);
-    html += `<div class="day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === dOff(0) ? 'today' : ''}"><span class="dn">${d.getDate()}</span>${evP.map(p => `<button class="ev plan" data-act="batch" data-id="${p.batch.id}" title="${CROPS[p.crop].label}, ${p.kg} kg planned">${p.crop} ${p.kg}kg</button>`).join('')}${evH.map(h => `<button class="ev done" data-act="harvest-view" data-id="${h.id}" title="${CROPS[h.crop].label}, ${h.actualKg} kg harvested">✓ ${h.crop} ${h.actualKg}kg</button>`).join('')}</div>`;
+    html += `<div class="day ${d.getMonth() !== m.getMonth() ? 'out' : ''} ${k === dOff(0) ? 'today' : ''}"><span class="dn">${d.getDate()}</span>${evP.map(p => `<button class="ev plan" data-act="batch" data-id="${esc(p.batch.id)}" title="${esc(cropDef(p.crop).label)}, ${p.kg} kg planned">${esc(p.crop)} ${p.kg}kg</button>`).join('')}${evH.map(h => `<button class="ev done" data-act="harvest-view" data-id="${esc(h.id)}" title="${esc(cropDef(h.crop).label)}, ${h.actualKg} kg harvested">✓ ${esc(h.crop)} ${h.actualKg}kg</button>`).join('')}</div>`;
   }
   return `<div class="cal" aria-label="Harvest calendar">${html}</div>`;
 }
 function harvestTable(list) {
-  if (!list.length) return empty('basket', 'No harvest records yet', 'Record a harvest from the readiness table.');
-  return `<div class="tbl-wrap"><table><thead><tr><th>Record</th><th>Date</th><th>Crop</th><th>Location</th><th class="r">Estimated</th><th class="r">Actual</th><th class="r">Variance</th><th>Grade</th></tr></thead><tbody>${list.map(h => { const v = (h.actualKg - h.estKg) / h.estKg * 100; return `<tr class="click" data-act="harvest-view" data-id="${h.id}" tabindex="0"><td class="mono">${h.id}</td><td class="num">${fmtD(h.date)}</td><td>${CROPS[h.crop].label}</td><td>${ghById(h.ghId).name} · ${esc(h.zone || '')}</td><td class="r num">${num(h.estKg)} kg</td><td class="r num"><b>${num(h.actualKg)} kg</b></td><td class="r num" style="color:var(${v < -8 ? '--crit' : v < 0 ? '--warn' : '--ok'})">${v > 0 ? '+' : ''}${num(v, 1)}%</td><td><span class="badge ${h.grade === 'A' ? 'b-ok' : h.grade === 'B' ? 'b-warn' : 'b-crit'}">Grade ${h.grade}</span></td></tr>`; }).join('')}</tbody></table></div>`;
+  if (!list.length) return empty('basket', 'No harvest records yet', 'Record a harvest from the readiness table or click Log harvest.');
+  return `<div class="tbl-wrap"><table><thead><tr><th>Record</th><th>Date</th><th>Crop</th><th>Location</th><th class="r">Estimated</th><th class="r">Actual</th><th class="r">Variance</th><th>Grade</th></tr></thead><tbody>${list.map(h => { const v = h.estKg > 0 ? (h.actualKg - h.estKg) / h.estKg * 100 : 0; return `<tr class="click" data-act="harvest-view" data-id="${esc(h.id)}" tabindex="0"><td class="mono">${esc(h.id)}</td><td class="num">${fmtD(h.date)}</td><td>${esc(cropDef(h.crop).label)}</td><td>${esc(ghName(h.ghId))} · ${esc(h.zone || '')}</td><td class="r num">${num(h.estKg)} kg</td><td class="r num"><b>${num(h.actualKg)} kg</b></td><td class="r num" style="color:var(${v < -8 ? '--crit' : v < 0 ? '--warn' : '--ok'})">${h.estKg > 0 ? `${v > 0 ? '+' : ''}${num(v, 1)}%` : '—'}</td><td><span class="badge ${h.grade === 'A' ? 'b-ok' : h.grade === 'B' ? 'b-warn' : 'b-crit'}">Grade ${esc(h.grade)}</span></td></tr>`; }).join('')}</tbody></table></div>`;
 }
 function harvestView(id) {
   const h = Store.get('harvests', id); if (!h) return;
-  openModal({ title: `Harvest ${h.id}`, submitLabel: null, body: `<dl class="kv"><dt>Crop</dt><dd>${CROPS[h.crop].label}</dd><dt>Date</dt><dd>${fmtDL(h.date)}</dd><dt>Location</dt><dd>${ghById(h.ghId).name}, zone ${esc(h.zone || '—')}</dd>${h.batchId ? `<dt>Batch</dt><dd>${h.batchId}</dd>` : ''}<dt>Estimated</dt><dd class="num">${num(h.estKg)} kg</dd><dt>Actual</dt><dd class="num">${num(h.actualKg)} kg</dd><dt>Quality grade</dt><dd>Grade ${h.grade}</dd><dt>Recorded by</dt><dd>${esc(h.updatedBy || 'Sample data')}</dd>${h.notes ? `<dt>Notes</dt><dd>${esc(h.notes)}</dd>` : ''}</dl>`, footer: '<button type="button" class="btn" data-close>Close</button>' });
+  openModal({
+    title: `Harvest ${h.id}`, submitLabel: null,
+    body: `<dl class="kv"><dt>Crop</dt><dd>${esc(cropDef(h.crop).label)}</dd><dt>Date</dt><dd>${fmtDL(h.date)}</dd><dt>Location</dt><dd>${esc(ghName(h.ghId))}, zone ${esc(h.zone || '—')}</dd>${h.batchId ? `<dt>Batch</dt><dd>${esc(h.batchId)}</dd>` : ''}<dt>Estimated</dt><dd class="num">${num(h.estKg)} kg</dd><dt>Actual</dt><dd class="num">${num(h.actualKg)} kg</dd><dt>Quality grade</dt><dd>Grade ${esc(h.grade)}</dd><dt>Recorded by</dt><dd>${esc(h.updatedBy || 'Sample data')}</dd>${h.notes ? `<dt>Notes</dt><dd>${esc(h.notes)}</dd>` : ''}</dl>`,
+    footer: `${can('harvest') ? `<button type="button" class="btn" data-act="harvest-delete" data-id="${esc(h.id)}">${ic('trash')}Delete</button><button type="button" class="btn primary" data-act="harvest-edit" data-id="${esc(h.id)}">${ic('edit')}Edit</button>` : ''}<button type="button" class="btn" data-close>Close</button>`
+  });
+}
+function harvestEditForm(id) {
+  if (!can('harvest')) return toast('Editing harvests is not available for this role.', 'error');
+  const h = Store.get('harvests', id); if (!h) return;
+  const ghs = greenhouses(), cropsObj = cropsMap();
+  const cropEntries = cropsObj[h.crop] ? Object.entries(cropsObj) : [...Object.entries(cropsObj), [h.crop, cropDef(h.crop)]];
+  const ghOpts = ghs.some(g => g.id === h.ghId) ? ghs : [...ghs, { id: h.ghId, name: ghName(h.ghId) }];
+  openModal({
+    title: `Edit harvest · ${h.id}`, submitLabel: 'Save changes',
+    body: `<div class="form-grid">
+      ${fld('Crop', `<select id="he-crop" name="crop">${cropEntries.map(([k, c]) => `<option value="${esc(k)}" ${h.crop === k ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select>`, 'crop')}
+      ${fld('Greenhouse', `<select id="he-gh" name="ghId">${ghOpts.map(g => `<option value="${esc(g.id)}" ${h.ghId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`, 'ghId')}
+      ${fld('Zone', `<input id="he-zone" name="zone" value="${esc(h.zone || '')}">`, 'zone')}
+      ${fld('Harvest date', `<input id="he-date" name="date" type="date" value="${h.date}" max="${dOff(0)}">`, 'date')}
+      ${fld('Estimated (kg)', `<input id="he-est" name="estKg" type="number" min="0" step="0.1" value="${h.estKg}">`, 'estKg')}
+      ${fld('Actual quantity (kg)', `<input id="he-kg" name="actualKg" type="number" min="0" step="0.1" value="${h.actualKg}">`, 'actualKg')}
+      ${fld('Quality grade', `<select id="he-grade" name="grade">${['A', 'B', 'C'].map(g => `<option value="${g}" ${h.grade === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}</select>`, 'grade')}
+      <div class="full">${fld('Notes', `<textarea id="he-notes" name="notes">${esc(h.notes || '')}</textarea>`, 'notes')}</div>
+    </div>`,
+    validate: d => ({
+      actualKg: !(d.actualKg !== '' && +d.actualKg > 0) && 'Enter the harvested quantity in kg (more than 0).',
+      date: !d.date ? 'Choose the harvest date.' : d.date > dOff(0) && 'A harvest cannot be dated in the future.'
+    }),
+    submit: async d => {
+      await Store.put('harvests', { ...h, ...d, estKg: Number(d.estKg) || 0, actualKg: Number(d.actualKg) });
+      return `Harvest ${h.id} updated.`;
+    }
+  });
 }
 function harvestForm(batchId) {
   if (!can('harvest')) return toast('Recording harvests is not available for this role.', 'error');
-  const b = Store.get('batches', batchId), c = CROPS[b.crop];
+  const b = batchId ? Store.get('batches', batchId) : null;
+  if (b) {
+    const c = cropDef(b.crop);
+    openModal({
+      title: `Record harvest · ${b.id}`, submitLabel: 'Save harvest record',
+      body: `<p class="muted">${esc(c.label)}, ${esc(ghName(b.ghId))} zone ${esc(b.zone)}. Estimated ${num(b.estKg)} kg.</p><div class="form-grid">
+        ${fld('Harvest date', `<input id="h-date" name="date" type="date" value="${dOff(0)}" max="${dOff(0)}">`, 'date')}
+        ${fld('Actual quantity (kg)', `<input id="h-kg" name="actualKg" type="number" min="0" step="0.1" inputmode="decimal">`, 'actualKg')}
+        ${fld('Quality grade', `<select id="h-grade" name="grade"><option value="A">Grade A, premium</option><option value="B">Grade B, standard</option><option value="C">Grade C, processing</option></select>`, 'grade')}
+        ${fld('Batch status after harvest', `<select id="h-final" name="final"><option value="final" ${c.continuous ? '' : 'selected'}>Final harvest, mark batch harvested</option><option value="pick" ${c.continuous ? 'selected' : ''}>Ongoing picking, next pick in 7 days</option></select>`, 'final')}
+        <div class="full">${fld('Notes', `<textarea id="h-notes" name="notes" placeholder="Rejects, size distribution, packing notes"></textarea>`, 'notes')}</div></div>`,
+      validate: d => ({ actualKg: !(d.actualKg !== '' && +d.actualKg > 0) && 'Enter the harvested quantity in kg (more than 0).', date: !d.date ? 'Choose the harvest date.' : d.date > dOff(0) && 'A harvest cannot be recorded in the future.' }),
+      submit: async d => {
+        const rec = { id: nextId('H', harvests()), batchId: b.id, crop: b.crop, ghId: b.ghId, zone: b.zone, date: d.date, estKg: Number(b.estKg), actualKg: Number(d.actualKg), grade: d.grade, notes: d.notes };
+        await Store.put('harvests', rec);
+        await Store.put('batches', d.final === 'final' ? { ...b, stage: 'Harvested', harvestedOn: d.date } : { ...b, expectedHarvest: iso(parseD(d.date).getTime() + 7 * DAY), stage: b.stage === 'Ready' ? 'Fruiting' : b.stage });
+        return `Harvest ${rec.id} saved: ${num(rec.actualKg, 1)} kg.`;
+      }
+    });
+    return;
+  }
+  const ghs = greenhouses(), cropsObj = cropsMap(), act = activeBatches();
+  const defGh = ghs[0] || { id: 'gh-a', zones: ['A1'] };
   openModal({
-    title: `Record harvest · ${b.id}`, submitLabel: 'Save harvest record',
-    body: `<p class="muted">${c.label}, ${ghById(b.ghId).name} zone ${esc(b.zone)}. Estimated ${num(b.estKg)} kg.</p><div class="form-grid">
+    title: 'Log harvest', submitLabel: 'Save harvest record',
+    body: `<div class="form-grid">
+      ${act.length ? `<div class="full">${fld('Link to active batch (optional)', `<select id="h-batch" name="batchId"><option value="">Standalone harvest record</option>${act.map(x => `<option value="${esc(x.id)}">${esc(x.id)} · ${esc(cropDef(x.crop).label)} (${esc(ghName(x.ghId))})</option>`).join('')}</select>`, 'batchId')}</div>` : ''}
+      ${fld('Crop', `<select id="h-crop" name="crop">${Object.entries(cropsObj).map(([k, c]) => `<option value="${esc(k)}">${esc(c.label)}</option>`).join('')}</select>`, 'crop')}
+      ${fld('Greenhouse', `<select id="h-gh" name="ghId">${ghs.length ? ghs.map(g => `<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('') : '<option value="gh-a">Greenhouse A</option>'}</select>`, 'ghId')}
+      ${fld('Zone', `<input id="h-zone" name="zone" value="${esc((defGh.zones && defGh.zones[0]) || 'A1')}">`, 'zone')}
       ${fld('Harvest date', `<input id="h-date" name="date" type="date" value="${dOff(0)}" max="${dOff(0)}">`, 'date')}
+      ${fld('Estimated (kg)', `<input id="h-est" name="estKg" type="number" min="0" step="0.1" value="0">`, 'estKg')}
       ${fld('Actual quantity (kg)', `<input id="h-kg" name="actualKg" type="number" min="0" step="0.1" inputmode="decimal">`, 'actualKg')}
       ${fld('Quality grade', `<select id="h-grade" name="grade"><option value="A">Grade A, premium</option><option value="B">Grade B, standard</option><option value="C">Grade C, processing</option></select>`, 'grade')}
-      ${fld('Batch status after harvest', `<select id="h-final" name="final"><option value="final" ${c.continuous ? '' : 'selected'}>Final harvest, mark batch harvested</option><option value="pick" ${c.continuous ? 'selected' : ''}>Ongoing picking, next pick in 7 days</option></select>`, 'final')}
-      <div class="full">${fld('Notes', `<textarea id="h-notes" name="notes" placeholder="Rejects, size distribution, packing notes"></textarea>`, 'notes')}</div></div>`,
+      <div class="full">${fld('Notes', `<textarea id="h-notes" name="notes" placeholder="Rejects, size distribution, packing notes"></textarea>`, 'notes')}</div>
+    </div>`,
+    onOpen: m => {
+      const sel = $('#h-batch', m);
+      if (sel) sel.onchange = () => {
+        const bx = Store.get('batches', sel.value);
+        if (bx) { $('#h-crop', m).value = bx.crop; $('#h-gh', m).value = bx.ghId; $('#h-zone', m).value = bx.zone || ''; $('#h-est', m).value = bx.estKg; }
+      };
+    },
     validate: d => ({ actualKg: !(d.actualKg !== '' && +d.actualKg > 0) && 'Enter the harvested quantity in kg (more than 0).', date: !d.date ? 'Choose the harvest date.' : d.date > dOff(0) && 'A harvest cannot be recorded in the future.' }),
     submit: async d => {
-      const rec = { id: nextId('H', harvests()), batchId: b.id, crop: b.crop, ghId: b.ghId, zone: b.zone, date: d.date, estKg: Number(b.estKg), actualKg: Number(d.actualKg), grade: d.grade, notes: d.notes };
+      const rec = { id: nextId('H', harvests()), batchId: d.batchId || '', crop: d.crop, ghId: d.ghId, zone: d.zone, date: d.date, estKg: Number(d.estKg) || 0, actualKg: Number(d.actualKg), grade: d.grade, notes: d.notes };
       await Store.put('harvests', rec);
-      await Store.put('batches', d.final === 'final' ? { ...b, stage: 'Harvested', harvestedOn: d.date } : { ...b, expectedHarvest: iso(parseD(d.date).getTime() + 7 * DAY), stage: b.stage === 'Ready' ? 'Fruiting' : b.stage });
       return `Harvest ${rec.id} saved: ${num(rec.actualKg, 1)} kg.`;
     }
   });
@@ -1612,32 +2492,68 @@ function harvestForm(batchId) {
 
 /* ================= Tasks ================= */
 function vTasks() {
-  const f = ui.taskF, q = f.q.toLowerCase();
+  const f = ui.taskF, q = f.q.toLowerCase(), ghs = greenhouses(), people = teamMembers();
   const list = tasks().filter(t => (!f.gh || t.ghId === f.gh) && (!f.who || t.assignee === f.who) && (!f.pri || t.priority === f.pri) && (f.status === 'All' || (f.status === 'Open' ? t.status !== 'Done' : t.status === 'Done'))
     && (f.when === 'all' || (f.when === 'today' && t.due === dOff(0)) || (f.when === 'overdue' && isOverdue(t)) || (f.when === 'week' && daysFrom(t.due) >= 0 && daysFrom(t.due) <= 7))
     && (!q || `${t.title} ${t.notes} ${t.assignee}`.toLowerCase().includes(q))).sort((a, b) => (a.status === 'Done') - (b.status === 'Done') || a.due.localeCompare(b.due) || a.time.localeCompare(b.time));
   const all = tasks(), open = all.filter(t => t.status !== 'Done');
-  return `${pageHead('Farmer Tasks', 'Assign, schedule and complete work across greenhouses.', can('tasks') ? `<button class="btn primary" data-act="task-new">${ic('plus')}New task</button>` : '')}
+  const taskActions = can('tasks') ? `<button class="btn" data-act="team-manage">${ic('user')}Manage team</button><button class="btn primary" data-act="task-new">${ic('plus')}New task</button>` : '';
+  return `${pageHead('Farmer Tasks', 'Assign, schedule and complete work across greenhouses.', taskActions)}
   <div class="stats">${[['Open', open.length], ['Due today', open.filter(t => t.due === dOff(0)).length], ['Overdue', open.filter(isOverdue).length], ['Completed today', all.filter(t => t.status === 'Done' && (t.completedAt ? iso(t.completedAt) === dOff(0) : t.due === dOff(0))).length]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   ${card('Tasks', `<div class="toolbar" style="margin-bottom:10px">
     <label class="sr" for="tf-q">Search tasks</label><input id="tf-q" class="input grow" type="search" placeholder="Search tasks" value="${esc(f.q)}" data-filter="taskF.q">
-    <label class="sr" for="tf-gh">Greenhouse</label><select id="tf-gh" class="select" data-filter="taskF.gh"><option value="">All greenhouses</option>${GH.map(g => `<option value="${g.id}" ${f.gh === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select>
-    <label class="sr" for="tf-who">Assignee</label><select id="tf-who" class="select" data-filter="taskF.who"><option value="">Everyone</option>${PEOPLE.map(p => `<option ${f.who === p.name ? 'selected' : ''}>${p.name}</option>`).join('')}</select>
+    <label class="sr" for="tf-gh">Greenhouse</label><select id="tf-gh" class="select" data-filter="taskF.gh"><option value="">All greenhouses</option>${ghs.map(g => `<option value="${esc(g.id)}" ${f.gh === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>
+    <label class="sr" for="tf-who">Assignee</label><select id="tf-who" class="select" data-filter="taskF.who"><option value="">Everyone</option>${people.map(p => `<option ${f.who === p.name ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
     <label class="sr" for="tf-pri">Priority</label><select id="tf-pri" class="select" data-filter="taskF.pri"><option value="">Any priority</option>${['High', 'Medium', 'Low'].map(p => `<option ${f.pri === p ? 'selected' : ''}>${p}</option>`).join('')}</select>
   </div><div class="toolbar" style="margin-bottom:6px">${seg('taskStatus', [['Open', 'Open'], ['Done', 'Completed'], ['All', 'All']], f.status, 'Status')}${seg('taskWhen', [['all', 'Any date'], ['today', 'Today'], ['overdue', 'Overdue'], ['week', 'Next 7 days']], f.when, 'Due date')}</div>
   ${taskList(list)}`, { sub: `${list.length} shown` })}`;
 }
+function teamManagerModal() {
+  const people = Store.all('team');
+  openModal({
+    title: 'Manage farm team', wide: true, submitLabel: null,
+    body: `${people.length ? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody>${people.map(p => `<tr><td><b>${esc(p.name)}</b></td><td>${esc(p.role)}</td><td class="r"><button type="button" class="btn sm ghost" data-act="team-edit" data-id="${esc(p.id)}">${ic('edit')}</button></td></tr>`).join('')}</tbody></table></div>` : empty('user', 'No team members added yet', 'Add team members so tasks can be assigned cleanly in Live Data mode.')}`,
+    footer: `<button type="button" class="btn primary" data-act="team-new">${ic('plus')}Add team member</button><button type="button" class="btn" data-close>Close</button>`
+  });
+}
+function teamMemberForm(id) {
+  const p = id ? Store.get('team', id) : { name: '', role: 'Farm Worker' };
+  if (!p) return;
+  openModal({
+    title: id ? `Edit ${p.name}` : 'Add team member', submitLabel: id ? 'Save changes' : 'Add member',
+    body: `<div class="form-grid">
+      <div class="full">${fld('Full name', `<input id="tm-name" name="name" value="${esc(p.name)}" placeholder="e.g. Maria Santos">`, 'name')}</div>
+      <div class="full">${fld('Role', `<select id="tm-role" name="role">${['Farm Worker', 'Farm Manager', 'Farm Owner', 'Agronomist'].map(r => `<option ${p.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select>`, 'role')}</div>
+    </div>`,
+    validate: d => ({ name: d.name.trim().length < 2 && 'Enter a team member name.' }),
+    submit: async d => {
+      const doc = { id: id || uid('P'), name: d.name.trim(), role: d.role };
+      await Store.put('team', doc);
+      return `${doc.name} saved.`;
+    },
+    footer: id ? `<button type="button" class="btn" data-act="team-delete" data-id="${esc(id)}">${ic('trash')}Remove</button>` : ''
+  });
+}
 function taskForm(id) {
-  const t = id ? Store.get('tasks', id) : { title: '', ghId: 'gh-a', assignee: PEOPLE[1].name, priority: 'Medium', due: dOff(0), time: '09:00', recurrence: 'none', notes: '', status: 'Open' };
+  const ghs = greenhouses(), people = teamMembers();
+  const defGh = ghs[0]?.id || '';
+  const defWho = people[0]?.name || currentUser().name;
+  const t = id ? Store.get('tasks', id) : { title: '', ghId: defGh, assignee: defWho, priority: 'Medium', due: dOff(0), time: '09:00', recurrence: 'none', notes: '', status: 'Open' };
   if (!t) return;
   const editable = can('tasks');
   let photo = t.photo || '';
+  const ghOpts = ghs.length
+    ? (ghs.some(g => g.id === t.ghId) || !t.ghId ? ghs : [...ghs, { id: t.ghId, name: ghName(t.ghId) }])
+    : [{ id: '', name: 'Farmwide' }];
+  const assigneeCtrl = people.length
+    ? `<select id="k-who" name="assignee" ${editable ? '' : 'disabled'}>${(people.some(p => p.name === t.assignee) ? people : [...people, { name: t.assignee }]).filter(p => p.name).map(p => `<option ${t.assignee === p.name ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>`
+    : `<input id="k-who" name="assignee" value="${esc(t.assignee)}" ${editable ? '' : 'readonly'} placeholder="Assignee name">`;
   openModal({
     title: id ? (editable ? 'Edit task' : 'Task details') : 'New task', submitLabel: id ? 'Save changes' : 'Create task',
     body: `${!editable ? `<div class="notice">${ic('info')}<div>As a Farm Worker you can complete tasks and add notes or photos. Managers assign and schedule.</div></div>` : ''}<div class="form-grid">
       <div class="full">${fld('Task', `<input id="k-title" name="title" value="${esc(t.title)}" ${editable ? '' : 'readonly'} placeholder="e.g. Flush and refill reservoir B">`, 'title')}</div>
-      ${fld('Greenhouse', `<select id="k-gh" name="ghId" ${editable ? '' : 'disabled'}>${GH.map(g => `<option value="${g.id}" ${t.ghId === g.id ? 'selected' : ''}>${g.name}</option>`).join('')}</select>`, 'ghId')}
-      ${fld('Assigned to', `<select id="k-who" name="assignee" ${editable ? '' : 'disabled'}>${PEOPLE.map(p => `<option ${t.assignee === p.name ? 'selected' : ''}>${p.name}</option>`).join('')}</select>`, 'assignee')}
+      ${fld('Greenhouse', `<select id="k-gh" name="ghId" ${editable ? '' : 'disabled'}><option value="">Farmwide</option>${ghOpts.filter(g => g.id).map(g => `<option value="${esc(g.id)}" ${t.ghId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select>`, 'ghId')}
+      ${fld('Assigned to', assigneeCtrl, 'assignee')}
       ${fld('Due date', `<input id="k-due" name="due" type="date" value="${t.due}" ${editable ? '' : 'readonly'}>`, 'due')}
       ${fld('Due time', `<input id="k-time" name="time" type="time" value="${t.time}" ${editable ? '' : 'readonly'}>`, 'time')}
       ${fld('Priority', `<select id="k-pri" name="priority" ${editable ? '' : 'disabled'}>${['High', 'Medium', 'Low'].map(p => `<option ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}</select>`, 'priority')}
@@ -1655,13 +2571,13 @@ function taskForm(id) {
       };
       $('#k-photo-rm', m).onclick = () => { photo = ''; $('#k-prev img', m)?.remove(); $('#k-photo-rm', m).hidden = true; inp.value = ''; };
     },
-    validate: d => editable ? ({ title: d.title.trim().length < 3 && 'Enter a task name (at least 3 characters).', due: !d.due && 'Choose a due date.', time: !d.time && 'Choose a due time.' }) : {},
+    validate: d => editable ? ({ title: d.title.trim().length < 3 && 'Enter a task name (at least 3 characters).', assignee: !String(d.assignee || '').trim() && 'Enter an assignee name.', due: !d.due && 'Choose a due date.', time: !d.time && 'Choose a due time.' }) : {},
     submit: async d => {
       const base = id ? t : { id: nextId('T', tasks()), status: 'Open', createdAt: Date.now() };
-      const doc = editable ? { ...base, ...d, title: d.title.trim(), photo } : { ...base, notes: d.notes, photo };
+      const doc = editable ? { ...base, ...d, title: d.title.trim(), assignee: String(d.assignee || '').trim(), photo } : { ...base, notes: d.notes, photo };
       await Store.put('tasks', doc); return id ? 'Task updated.' : `Task assigned to ${doc.assignee}.`;
     },
-    footer: id && editable ? `<button type="button" class="btn" data-act="task-delete" data-id="${id}">${ic('trash')}Delete</button>` : ''
+    footer: id && editable ? `<button type="button" class="btn" data-act="task-delete" data-id="${esc(id)}">${ic('trash')}Delete</button>` : ''
   });
 }
 async function toggleTask(id) {
@@ -1689,19 +2605,21 @@ function downscale(file, max, quality = 0.84) {
 const INV_CATS = ['Seeds', 'Nutrients', 'Growing media', 'Packaging', 'Equipment'];
 function vInventory() {
   const q = ui.invQ.toLowerCase();
-  const items = inventory().filter(i => (ui.invCat === 'All' || i.category === ui.invCat) && (!q || `${i.name} ${i.supplier}`.toLowerCase().includes(q))).sort((a, b) => (a.qty / a.threshold) - (b.qty / b.threshold));
-  const low = inventory().filter(i => +i.qty < +i.threshold);
-  const value = inventory().reduce((s, i) => s + i.qty * (i.cost || 0), 0);
+  const allInv = inventory();
+  const items = allInv.filter(i => (ui.invCat === 'All' || i.category === ui.invCat) && (!q || `${i.name} ${i.supplier}`.toLowerCase().includes(q))).sort((a, b) => (a.qty / a.threshold) - (b.qty / b.threshold));
+  const low = allInv.filter(i => +i.qty < +i.threshold);
+  const value = allInv.reduce((s, i) => s + i.qty * (i.cost || 0), 0);
   const mv = Store.all('movements').sort((a, b) => b.date.localeCompare(a.date) || (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 12);
-  return `${pageHead('Smart Inventory', 'Seeds, nutrients, growing media, packaging and equipment.', `<button class="btn" data-act="move-new">${ic('repeat')}Record stock movement</button>${can('inventory') ? `<button class="btn primary" data-act="inv-new">${ic('plus')}Add item</button>` : ''}`)}
-  <div class="stats">${[['Items tracked', inventory().length], ['Below reorder point', low.length], ['Stock value (at cost)', money(value)], ['Suppliers', new Set(inventory().map(i => i.supplier)).size]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  return `${pageHead('Smart Inventory', 'Seeds, nutrients, growing media, packaging and equipment.', `${allInv.length ? `<button class="btn" data-act="move-new">${ic('repeat')}Record stock movement</button>` : ''}${can('inventory') ? `<button class="btn primary" data-act="inv-new">${ic('plus')}Add item</button>` : ''}`)}
+  <div class="stats">${[['Items tracked', allInv.length], ['Below reorder point', low.length], ['Stock value (at cost)', money(value)], ['Suppliers', new Set(allInv.map(i => i.supplier)).size]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   ${low.length ? `<div class="notice warn">${ic('alert')}<div><b>${low.length} item${low.length > 1 ? 's' : ''} below reorder point:</b> ${low.map(i => esc(i.name)).join(', ')}. Supplier ordering requires a purchasing integration that is not connected.</div></div>` : ''}
   ${card('Stock', `<div class="toolbar" style="margin-bottom:12px"><label class="sr" for="iv-q">Search inventory</label><input id="iv-q" class="input grow" type="search" placeholder="Search items or suppliers" value="${esc(ui.invQ)}" data-filter="invQ">${seg('invCat', [['All', 'All'], ...INV_CATS.map(c => [c, c])], ui.invCat, 'Category')}</div>
-  ${items.length ? `<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Category</th><th class="r">On hand</th><th class="r">Reorder at</th><th>Level</th><th>Supplier</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${items.map(i => { const ratio = i.qty / i.threshold, st = ratio < 0.5 ? 'crit' : ratio < 1 ? 'warn' : 'ok'; return `<tr><td><b>${esc(i.name)}</b><div class="small muted mono">${i.id}</div></td><td>${i.category}</td><td class="r num"><b>${num(i.qty)}</b> ${esc(i.unit)}</td><td class="r num">${num(i.threshold)} ${esc(i.unit)}</td><td><div class="ready"><div class="bar" style="width:80px"><i class="${st === 'ok' ? '' : st}" style="width:${clamp(ratio / 2 * 100, 3, 100)}%"></i></div>${st === 'ok' ? '<span class="badge b-ok">In stock</span>' : st === 'warn' ? '<span class="badge b-warn">Reorder</span>' : '<span class="badge b-crit">Critical</span>'}</div></td><td class="small">${esc(i.supplier)}</td><td class="r"><div class="toolbar" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="move-new" data-id="${i.id}">Movement</button>${can('inventory') ? `<button class="btn sm ghost" data-act="inv-edit" data-id="${i.id}" aria-label="Edit ${esc(i.name)}">${ic('edit')}</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>` : empty('box', 'No items match', 'Try another category or search term.')}`, { sub: `${items.length} items` })}
+  ${items.length ? `<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Category</th><th class="r">On hand</th><th class="r">Reorder at</th><th>Level</th><th>Supplier</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${items.map(i => { const ratio = i.qty / Math.max(1, i.threshold), st = ratio < 0.5 ? 'crit' : ratio < 1 ? 'warn' : 'ok'; return `<tr><td><b>${esc(i.name)}</b><div class="small muted mono">${esc(i.id)}</div></td><td>${esc(i.category)}</td><td class="r num"><b>${num(i.qty)}</b> ${esc(i.unit)}</td><td class="r num">${num(i.threshold)} ${esc(i.unit)}</td><td><div class="ready"><div class="bar" style="width:80px"><i class="${st === 'ok' ? '' : st}" style="width:${clamp(ratio / 2 * 100, 3, 100)}%"></i></div>${st === 'ok' ? '<span class="badge b-ok">In stock</span>' : st === 'warn' ? '<span class="badge b-warn">Reorder</span>' : '<span class="badge b-crit">Critical</span>'}</div></td><td class="small">${esc(i.supplier)}</td><td class="r"><div class="toolbar" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="move-new" data-id="${esc(i.id)}">Movement</button>${can('inventory') ? `<button class="btn sm ghost" data-act="inv-edit" data-id="${esc(i.id)}" aria-label="Edit ${esc(i.name)}">${ic('edit')}</button>` : ''}</div></td></tr>`; }).join('')}</tbody></table></div>` : allInv.length ? empty('box', 'No items match', 'Try another category or search term.') : empty('box', 'No inventory items yet', 'Add inventory items in Live Data mode to track stock levels and reorder alerts.', can('inventory') ? `<button class="btn primary" data-act="inv-new">${ic('plus')}Add item</button>` : '')}`, { sub: `${items.length} items` })}
   ${card('Recent stock movements', mv.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Item</th><th>Type</th><th class="r">Quantity</th><th>Note</th><th>By</th></tr></thead><tbody>${mv.map(m => { const it = Store.get('inventory', m.itemId); return `<tr><td class="num">${fmtD(m.date)}</td><td>${esc(it ? it.name : m.itemId)}</td><td><span class="badge ${m.type === 'In' ? 'b-ok' : m.type === 'Out' ? 'b-info' : 'b-mute'}">${m.type === 'In' ? 'Received' : m.type === 'Out' ? 'Used' : 'Adjusted'}</span></td><td class="r num">${m.type === 'Out' ? '−' : m.type === 'In' ? '+' : '='}${num(m.qty)} ${esc(it?.unit || '')}</td><td class="small">${esc(m.note)}</td><td class="small muted">${esc(m.by)}</td></tr>`; }).join('')}</tbody></table></div>` : empty('repeat', 'No movements yet', 'Record stock received or used.'))}`;
 }
 function invForm(id) {
   const i = id ? Store.get('inventory', id) : { name: '', category: 'Nutrients', qty: '', unit: 'kg', threshold: '', supplier: '', cost: '' };
+  if (!i) return;
   openModal({
     title: id ? 'Edit item' : 'Add inventory item', submitLabel: id ? 'Save changes' : 'Add item',
     body: `<div class="form-grid"><div class="full">${fld('Item name', `<input id="i-name" name="name" value="${esc(i.name)}">`, 'name')}</div>
@@ -1712,7 +2630,8 @@ function invForm(id) {
       ${fld('Supplier', `<input id="i-sup" name="supplier" value="${esc(i.supplier)}">`, 'supplier')}
       ${fld('Unit cost ($)', `<input id="i-cost" name="cost" type="number" min="0" step="0.01" value="${esc(i.cost)}">`, 'cost')}</div>`,
     validate: d => ({ name: d.name.trim().length < 2 && 'Enter the item name.', unit: !d.unit.trim() && 'Enter a unit, such as kg or units.', qty: !(d.qty !== '' && +d.qty >= 0) && 'Enter a quantity of 0 or more.', threshold: !(d.threshold !== '' && +d.threshold >= 0) && 'Enter a reorder threshold of 0 or more.', supplier: !d.supplier.trim() && 'Enter the supplier name.' }),
-    submit: async d => { const doc = { ...(id ? i : { id: nextId('I', inventory()) }), ...d, qty: +d.qty, threshold: +d.threshold, cost: +d.cost || 0 }; await Store.put('inventory', doc); return `${doc.name} saved.`; }
+    submit: async d => { const doc = { ...(id ? i : { id: nextId('I', inventory()) }), ...d, qty: +d.qty, threshold: +d.threshold, cost: +d.cost || 0 }; await Store.put('inventory', doc); return `${doc.name} saved.`; },
+    footer: id && can('inventory') ? `<button type="button" class="btn" data-act="inv-delete" data-id="${esc(id)}">${ic('trash')}Delete</button>` : ''
   });
 }
 function moveForm(itemId) {
@@ -1739,9 +2658,10 @@ function moveForm(itemId) {
 function vAlerts() {
   const all = alerts(), shown = all.filter(a => ui.showResolved || a.state !== 'resolved');
   const act = all.filter(a => a.state !== 'resolved');
-  return `${pageHead('Smart Alerts', 'Prioritized issues from sensors, crop observations, inventory and tasks. Critical first.', `<label class="split" style="font-weight:600"><input type="checkbox" id="showResolved" ${ui.showResolved ? 'checked' : ''} style="width:18px;height:18px"> Show resolved</label>`)}
+  const live = isLiveMode();
+  return `${pageHead('Smart Alerts', 'Prioritized issues from sensors, crop observations, inventory and tasks. Critical first.', `${dataModeTag()}<label class="split" style="font-weight:600"><input type="checkbox" id="showResolved" ${ui.showResolved ? 'checked' : ''} style="width:18px;height:18px"> Show resolved</label>`)}
   <div class="stats">${[['Critical', act.filter(a => a.sev === 'crit').length], ['Attention', act.filter(a => a.sev === 'warn').length], ['Acknowledged', act.filter(a => a.state === 'acknowledged').length], ['Resolved', all.filter(a => a.state === 'resolved').length]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
-  <div class="notice">${ic('info')}<div>Sensor alerts come from demo readings checked against each greenhouse's target ranges. Push notifications by SMS or email need a messaging integration that is not connected.</div></div>
+  <div class="notice">${ic('info')}<div>${live ? 'Live Data mode active: sensor alerts trigger from connected sensors and manual meter logs checked against each greenhouse’s target ranges.' : 'Sensor alerts come from demo readings checked against each greenhouse\'s target ranges.'} Push notifications by SMS or email need a messaging integration that is not connected.</div></div>
   ${card('Alert feed', alertFeed(shown, true), { sub: `${shown.length} alerts` })}`;
 }
 async function setAlert(id, status) {
@@ -1751,29 +2671,46 @@ async function setAlert(id, status) {
 
 /* ================= AI: Crop Nutrition ================= */
 function vNutrition() {
-  const id = ui.nutGh, g = ghById(id), r = readings(id), mr = manualReading(id);
-  const ph = mr ? mr.ph : r.ph, ec = mr ? mr.ec : r.ec, src = mr ? `manual reading by ${esc(mr.by)}, ${fmtDT(mr.at)}` : 'demo sensor reading';
+  const ghs = greenhouses();
+  if (!ghs.length) {
+    return `${pageHead('Crop Nutrition', 'Nutrient suggestions from crop stage and recorded pH and EC.', aiModeTag())}
+    <div class="card">${empty('flask', 'No greenhouses configured yet', 'Add a greenhouse in Greenhouse Management to calculate dosing recommendations.', can('targets') ? `<button class="btn primary" data-act="gh-new">${ic('plus')}Add greenhouse</button>` : '')}</div>`;
+  }
+  const g = ghById(ui.nutGh) || ghs[0];
+  const id = g.id;
+  ui.nutGh = id;
+  const r = readings(id), mr = manualReading(id), live = isLiveMode();
+  const ph = mr?.ph != null ? mr.ph : (r?.ph ?? null);
+  const ec = mr?.ec != null ? mr.ec : (r?.ec ?? null);
+  const hasNut = ph !== null && ec !== null;
+  const src = mr ? `manual reading by ${esc(mr.by)}, ${fmtDT(mr.at)}` : live ? 'live sensor reading' : 'demo sensor reading';
   const bs = activeBatches().filter(b => b.ghId === id);
-  const crop = bs[0]?.crop || g.main, c = CROPS[crop];
+  const crop = bs[0]?.crop || g.main, c = cropDef(crop);
   const stage = bs.sort((a, b) => STAGES.indexOf(b.stage) - STAGES.indexOf(a.stage))[0]?.stage || 'Vegetative';
-  const ecT = c.ec[stage] || c.ec.Vegetative, phT = c.ph;
+  const ecT = (c.ec && (c.ec[stage] || c.ec.Vegetative)) || [1.0, 1.8];
+  const phT = c.ph || [5.5, 6.5];
   const recs = [];
-  const res = 1800; // reservoir volume litres (demo)
-  if (ph > phT[1]) { const delta = ph - (phT[0] + phT[1]) / 2; recs.push({ sev: 'warn', title: `Lower pH by about ${num(delta, 2)}`, why: `pH ${ph} is above the ${phT[0]}–${phT[1]} range for ${c.label}. Above 6.5, iron and manganese become less available, which shows as interveinal yellowing on new leaves.`, how: `Add pH Down (phosphoric 75%) in steps of about ${Math.round(res / 1000 * 2 * delta / 0.3)} mL for the ${num(res)} L reservoir, circulate 30 minutes and re-measure before adding more.` }); }
-  else if (ph < phT[0]) { const delta = (phT[0] + phT[1]) / 2 - ph; recs.push({ sev: 'warn', title: `Raise pH by about ${num(delta, 2)}`, why: `pH ${ph} is below ${phT[0]}. Low pH can lock out calcium and magnesium and stress roots.`, how: 'Add pH Up (potassium hydroxide) in small steps, circulate 30 minutes and re-measure.' }); }
-  else recs.push({ sev: 'ok', title: 'pH is within range', why: `pH ${ph} sits inside ${phT[0]}–${phT[1]} for ${c.label}.`, how: 'No change. Keep checking daily; pH tends to drift up as plants take up nitrate.' });
-  if (ec < ecT[0]) { const add = Math.round((ecT[0] + ecT[1]) / 2 * 10 - ec * 10) / 10; recs.push({ sev: 'warn', title: `Increase EC by about ${num(add, 1)} mS/cm`, why: `EC ${ec} is below the ${ecT[0]}–${ecT[1]} mS/cm target for the ${stage.toLowerCase()} stage. ${stage === 'Fruiting' || stage === 'Flowering' ? 'Fruiting plants need more potassium and calcium for fruit set and sugar content.' : 'Underfeeding slows growth and pales foliage.'}`, how: `Add nutrient A and B in equal parts. Roughly ${num(add * res * 0.5 / 1000 * 1.0, 1)} kg of each per ${num(res)} L raises EC by ${num(add, 1)}; dose half, mix, then re-measure.` }); }
-  else if (ec > ecT[1]) recs.push({ sev: 'warn', title: 'Reduce EC', why: `EC ${ec} is above ${ecT[1]} mS/cm. High salinity can cause tip burn and limit water uptake.`, how: 'Top up with fresh water and re-measure. Dilute in 10% steps.' });
-  else recs.push({ sev: 'ok', title: 'EC is within range', why: `EC ${ec} sits inside ${ecT[0]}–${ecT[1]} mS/cm for the ${stage.toLowerCase()} stage.`, how: 'Keep the current feed strength.' });
-  if (r.wt > 22) recs.push({ sev: 'warn', title: 'Cool the nutrient solution', why: `Water temperature ${r.wt} °C reduces dissolved oxygen and raises root-rot risk.`, how: 'Shade the reservoir or run the chiller; target 18–21 °C.' });
-  if (r.res < 40) recs.push({ sev: 'crit', title: 'Refill the reservoir before adjusting', why: `Reservoir level is ${r.res}%. Small volumes swing in pH and EC quickly, so corrections made now will overshoot.`, how: 'Refill to at least 70%, let it mix, then measure pH and EC again before dosing.' });
-  return `${pageHead('Crop Nutrition', 'Nutrient suggestions from crop stage and recorded pH and EC.', SIM_TAG)}
-  <div class="notice">${ic('info')}<div>These suggestions come from a <b>rule-based demo engine</b> using published hydroponic ranges, not a connected AI service. Confirm with your agronomist before changing a recipe.</div></div>
-  <div class="toolbar">${seg('nutGh', GH.map(x => [x.id, x.name]), id, 'Greenhouse')}<button class="btn" data-act="reading-new" data-id="${id}">${ic('edit')}Log manual reading</button></div>
+  const res = Number(g.reservoirLiters) || 1800; // dynamic reservoir volume litres
+  if (hasNut) {
+    if (ph > phT[1]) { const delta = ph - (phT[0] + phT[1]) / 2; recs.push({ sev: 'warn', title: `Lower pH by about ${num(delta, 2)}`, why: `pH ${ph} is above the ${phT[0]}–${phT[1]} range for ${c.label}. Above 6.5, iron and manganese become less available, which shows as interveinal yellowing on new leaves.`, how: `Add pH Down (phosphoric 75%) in steps of about ${Math.round(res / 1000 * 2 * delta / 0.3)} mL for the ${num(res)} L reservoir, circulate 30 minutes and re-measure before adding more.` }); }
+    else if (ph < phT[0]) { const delta = (phT[0] + phT[1]) / 2 - ph; recs.push({ sev: 'warn', title: `Raise pH by about ${num(delta, 2)}`, why: `pH ${ph} is below ${phT[0]}. Low pH can lock out calcium and magnesium and stress roots.`, how: 'Add pH Up (potassium hydroxide) in small steps, circulate 30 minutes and re-measure.' }); }
+    else recs.push({ sev: 'ok', title: 'pH is within range', why: `pH ${ph} sits inside ${phT[0]}–${phT[1]} for ${c.label}.`, how: 'No change. Keep checking daily; pH tends to drift up as plants take up nitrate.' });
+    if (ec < ecT[0]) { const add = Math.round((ecT[0] + ecT[1]) / 2 * 10 - ec * 10) / 10; recs.push({ sev: 'warn', title: `Increase EC by about ${num(add, 1)} mS/cm`, why: `EC ${ec} is below the ${ecT[0]}–${ecT[1]} mS/cm target for the ${stage.toLowerCase()} stage. ${stage === 'Fruiting' || stage === 'Flowering' ? 'Fruiting plants need more potassium and calcium for fruit set and sugar content.' : 'Underfeeding slows growth and pales foliage.'}`, how: `Add nutrient A and B in equal parts. Roughly ${num(add * res * 0.5 / 1000 * 1.0, 1)} kg of each per ${num(res)} L raises EC by ${num(add, 1)}; dose half, mix, then re-measure.` }); }
+    else if (ec > ecT[1]) recs.push({ sev: 'warn', title: 'Reduce EC', why: `EC ${ec} is above ${ecT[1]} mS/cm. High salinity can cause tip burn and limit water uptake.`, how: 'Top up with fresh water and re-measure. Dilute in 10% steps.' });
+    else recs.push({ sev: 'ok', title: 'EC is within range', why: `EC ${ec} sits inside ${ecT[0]}–${ecT[1]} mS/cm for the ${stage.toLowerCase()} stage.`, how: 'Keep the current feed strength.' });
+  }
+  if (r?.wt != null && r.wt > 22) recs.push({ sev: 'warn', title: 'Cool the nutrient solution', why: `Water temperature ${r.wt} °C reduces dissolved oxygen and raises root-rot risk.`, how: 'Shade the reservoir or run the chiller; target 18–21 °C.' });
+  if (r?.res != null && r.res < 40) recs.push({ sev: 'crit', title: 'Refill the reservoir before adjusting', why: `Reservoir level is ${r.res}%. Small volumes swing in pH and EC quickly, so corrections made now will overshoot.`, how: 'Refill to at least 70%, let it mix, then measure pH and EC again before dosing.' });
+  const adjBody = hasNut
+    ? `<div style="display:grid;gap:10px">${recs.map(x => `<div class="alert ${x.sev === 'ok' ? '' : x.sev}" style="grid-template-columns:auto 1fr"><span class="sev-ico" style="${x.sev === 'ok' ? 'background:var(--ok-bg);color:var(--ok)' : ''}">${ic(x.sev === 'ok' ? 'check' : 'flask')}</span><div><b>${esc(x.title)}</b><p style="margin-top:4px"><b style="display:inline;color:var(--fg)">Why:</b> ${esc(x.why)}</p><p style="margin-top:4px"><b style="display:inline;color:var(--fg)">How:</b> ${esc(x.how)}</p></div></div>`).join('')}</div>`
+    : empty('flask', 'Waiting for pH & EC data', `No live sensor reading or manual meter log is available for ${g.name} yet.`, `<button class="btn primary" data-act="reading-new" data-id="${esc(id)}">${ic('edit')}Log manual reading</button>`);
+  return `${pageHead('Crop Nutrition', 'Nutrient suggestions from crop stage and recorded pH and EC.', aiModeTag())}
+  <div class="notice">${ic('info')}<div>These suggestions come from a <b>rule-based engine</b> using published hydroponic ranges${live ? ' and your live/manual readings' : ', not a connected AI service'}. Confirm with your agronomist before changing a recipe.</div></div>
+  <div class="toolbar">${seg('nutGh', ghs.map(x => [x.id, esc(x.name)]), id, 'Greenhouse')}<button class="btn" data-act="reading-new" data-id="${esc(id)}">${ic('edit')}Log manual reading</button>${can('targets') ? `<button class="btn" data-act="gh-edit" data-id="${esc(id)}">${ic('edit')}Edit reservoir (${num(res)} L)</button>` : ''}</div>
   <div class="grid g-main">
-    ${card('Suggested adjustments', `<div style="display:grid;gap:10px">${recs.map(x => `<div class="alert ${x.sev === 'ok' ? '' : x.sev}" style="grid-template-columns:auto 1fr"><span class="sev-ico" style="${x.sev === 'ok' ? 'background:var(--ok-bg);color:var(--ok)' : ''}">${ic(x.sev === 'ok' ? 'check' : 'flask')}</span><div><b>${x.title}</b><p style="margin-top:4px"><b style="display:inline;color:var(--fg)">Why:</b> ${x.why}</p><p style="margin-top:4px"><b style="display:inline;color:var(--fg)">How:</b> ${x.how}</p></div></div>`).join('')}</div>`, { sub: `${g.name} · ${c.label}` })}
-    ${card('Inputs used', `<dl class="kv"><dt>Crop</dt><dd>${c.label}</dd><dt>Most advanced stage</dt><dd>${stage}</dd><dt>Batches</dt><dd>${bs.map(b => `${b.id} (${b.stage})`).join(', ') || 'None'}</dd><dt>pH</dt><dd class="num">${ph} <span class="small muted">(${src})</span></dd><dt>EC</dt><dd class="num">${ec} mS/cm <span class="small muted">(${src})</span></dd><dt>Water temp.</dt><dd class="num">${r.wt} °C (demo)</dd><dt>Reservoir</dt><dd class="num">${r.res}% of ${num(res)} L (demo)</dd><dt>pH target</dt><dd class="num">${phT[0]}–${phT[1]}</dd><dt>EC target</dt><dd class="num">${ecT[0]}–${ecT[1]} mS/cm for ${stage.toLowerCase()}</dd></dl>
-      <h3 style="margin:16px 0 6px">How the engine reasons</h3><ol class="list-plain small"><li>Finds the most advanced growth stage among active batches.</li><li>Looks up the crop's pH range and the stage-specific EC range.</li><li>Uses the newest manual reading if one exists, otherwise the demo sensor.</li><li>Flags conditions that make corrections unsafe, such as a low reservoir.</li><li>Sizes doses for the reservoir volume and asks you to re-measure.</li></ol>`)}
+    ${card('Suggested adjustments', adjBody, { sub: `${esc(g.name)} · ${esc(c.label)}` })}
+    ${card('Inputs used', `<dl class="kv"><dt>Crop</dt><dd>${esc(c.label)}</dd><dt>Most advanced stage</dt><dd>${esc(stage)}</dd><dt>Batches</dt><dd>${bs.map(b => `${esc(b.id)} (${esc(b.stage)})`).join(', ') || 'None'}</dd><dt>pH</dt><dd class="num">${ph !== null ? `${ph} <span class="small muted">(${src})</span>` : '<span class="muted">No data yet</span>'}</dd><dt>EC</dt><dd class="num">${ec !== null ? `${ec} mS/cm <span class="small muted">(${src})</span>` : '<span class="muted">No data yet</span>'}</dd><dt>Water temp.</dt><dd class="num">${r?.wt != null ? `${r.wt} °C${live ? '' : ' (demo)'}` : '<span class="muted">—</span>'}</dd><dt>Reservoir</dt><dd class="num">${r?.res != null ? `${r.res}% of ${num(res)} L${live ? '' : ' (demo)'}` : `${num(res)} L capacity`}</dd><dt>pH target</dt><dd class="num">${phT[0]}–${phT[1]}</dd><dt>EC target</dt><dd class="num">${ecT[0]}–${ecT[1]} mS/cm for ${stage.toLowerCase()}</dd></dl>
+      <h3 style="margin:16px 0 6px">How the engine reasons</h3><ol class="list-plain small"><li>Finds the most advanced growth stage among active batches.</li><li>Looks up the crop's pH range and the stage-specific EC range.</li><li>Uses the newest manual reading if one exists, otherwise the ${live ? 'live' : 'demo'} sensor.</li><li>Flags conditions that make corrections unsafe, such as a low reservoir.</li><li>Sizes doses for the ${num(res)} L reservoir volume and asks you to re-measure.</li></ol>`)}
   </div>`;
 }
 
@@ -1808,7 +2745,7 @@ function vDisease() {
       <div class="form-grid" style="margin-top:12px">
         <div class="full">${fld('Crop batch (optional)', `<select id="dBatch">
           <option value="" ${!d?.batchId ? 'selected' : ''}>General / non-batch plant (tree, shrub, herb, outdoor)</option>
-          ${batches.map(b => `<option value="${b.id}" ${d?.batchId === b.id ? 'selected' : ''}>${b.id} · ${CROPS[b.crop].label} · ${ghById(b.ghId).code}${b.zone.slice(1)}</option>`).join('')}
+          ${batches.map(b => { const g = ghById(b.ghId); return `<option value="${esc(b.id)}" ${d?.batchId === b.id ? 'selected' : ''}>${esc(b.id)} · ${esc(cropDef(b.crop).label)} · ${esc(g?.code || g?.name || b.ghId)}${esc(String(b.zone || '').slice(1))}</option>`; }).join('')}
         </select>`, 'dBatch')}</div>
         <div class="full">${fld('Visual context notes (optional)', `<input id="dNotes" type="text" maxlength="220" value="${esc(d?.notes || '')}" placeholder="e.g. Yellowing on lower leaves for 3 days, outdoor basil" ${isBusy ? 'disabled' : ''}>`, 'dNotes')}</div>
       </div>
@@ -1935,9 +2872,9 @@ async function analyzeDiseaseImage() {
     const b = d.batchId ? Store.get('batches', d.batchId) : null;
     const batchContext = {};
     if (b) {
-      batchContext.cropLabel = CROPS[b.crop]?.label || b.crop;
+      batchContext.cropLabel = cropDef(b.crop).label;
       batchContext.stage = b.stage;
-      batchContext.greenhouse = ghById(b.ghId)?.name || b.ghId;
+      batchContext.greenhouse = ghName(b.ghId);
       const r = readings(b.ghId);
       if (r) batchContext.readings = { ph: r.ph, ec: r.ec, temp: r.temp, hum: r.hum };
     }
@@ -2018,27 +2955,34 @@ function vAssistant() {
     <form id="chatForm" class="toolbar" novalidate><label class="sr" for="chatIn">Your question</label><input id="chatIn" class="input grow" placeholder="e.g. Which supplies are low, or how does NFT hydroponics work?" autocomplete="off" ${ui.chatBusy ? 'disabled' : ''}><button class="btn primary" type="submit" ${ui.chatBusy ? 'disabled' : ''}>${ui.chatBusy ? '<span class="spinner"></span>' : ic('send')}Send</button>${ui.chat.length ? '<button class="btn" type="button" data-act="chat-clear">Clear</button>' : ''}</form>`)}`;
 }
 function recordLink(id) {
-  if (/^B-\d+$/.test(id) && Store.get('batches', id)) return `<button class="tag" style="cursor:pointer" data-act="batch" data-id="${id}">${id}</button>`;
-  if (/^T-\d+$/.test(id) && Store.get('tasks', id)) return `<button class="tag" style="cursor:pointer" data-act="task-edit" data-id="${id}">${id}</button>`;
-  if (/^I-\d+$/.test(id) && Store.get('inventory', id)) return `<a class="tag" href="#inventory">${id}</a>`;
-  if (/^H-\d+$/.test(id) && Store.get('harvests', id)) return `<button class="tag" style="cursor:pointer" data-act="harvest-view" data-id="${id}">${id}</button>`;
-  if (/^SO-\d+$/.test(id)) return `<a class="tag" href="#sales">${id}</a>`;
-  const g = GH.find(x => x.name === id); if (g) return `<a class="tag" href="#${g.id}">${id}</a>`;
+  if (/^B-\d+$/.test(id) && Store.get('batches', id)) return `<button class="tag" style="cursor:pointer" data-act="batch" data-id="${esc(id)}">${esc(id)}</button>`;
+  if (/^T-\d+$/.test(id) && Store.get('tasks', id)) return `<button class="tag" style="cursor:pointer" data-act="task-edit" data-id="${esc(id)}">${esc(id)}</button>`;
+  if (/^I-\d+$/.test(id) && Store.get('inventory', id)) return `<a class="tag" href="#inventory">${esc(id)}</a>`;
+  if (/^H-\d+$/.test(id) && Store.get('harvests', id)) return `<button class="tag" style="cursor:pointer" data-act="harvest-view" data-id="${esc(id)}">${esc(id)}</button>`;
+  if (/^SO-\d+$/.test(id) && Store.get('orders', id)) return `<a class="tag" href="#sales">${esc(id)}</a>`;
+  const g = greenhouses().find(x => x.name.toLowerCase() === String(id || '').toLowerCase());
+  if (g) return `<a class="tag" href="#${esc(g.id)}">${esc(g.name)}</a>`;
   return esc(id);
 }
-const linkify = t => esc(t).replace(/\[([A-Za-z]{1,2}-\d+|Greenhouse [A-D])\]/g, (_, id) => recordLink(id)).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+const linkify = t => esc(t).replace(/\[([^\]]{1,48})\]/g, (full, id) => {
+  if (/^[A-Za-z]{1,2}-\d+$/.test(id) || greenhouses().some(x => x.name.toLowerCase() === id.toLowerCase())) {
+    return recordLink(id);
+  }
+  return full;
+}).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 function farmContext() {
-  const k = kpis();
+  const k = kpis(), live = isLiveMode(), ghs = greenhouses();
   return JSON.stringify({
-    date: dOff(0), farm: 'Riverside Hydro Farm', note: 'Sensor readings are demo data; no devices are connected.',
-    greenhouses: GH.map(g => ({ id: g.id, name: g.name, system: g.system, area: g.area, status: ST_LABEL[ghStatus(g.id)], readings: readings(g.id), targets: targets(g.id), plants: ghPlants(g.id), crops: ghCrops(g.id) })),
-    batches: activeBatches().map(b => ({ id: b.id, crop: CROPS[b.crop]?.label || b.crop, gh: ghById(b.ghId)?.name || b.ghId, zone: b.zone, plants: b.plants, stage: b.stage, health: b.health, expectedHarvest: b.expectedHarvest, estKg: b.estKg, lastObservation: (b.observations || []).slice(-1)[0] })),
-    openTasks: tasks().filter(t => t.status !== 'Done').map(t => ({ id: t.id, title: t.title, assignee: t.assignee, gh: ghById(t.ghId)?.name || 'Farmwide', priority: t.priority, due: t.due + ' ' + t.time, overdue: isOverdue(t) })),
+    date: dOff(0), farm: activeFarmName(), location: activeFarmLocation(), dataMode: live ? 'live' : 'simulated',
+    note: live ? 'Live Data mode active; sensor readings are null where sensors or manual logs are not yet available.' : 'Sensor readings are demo data; no devices are connected.',
+    greenhouses: ghs.map(g => ({ id: g.id, name: g.name, system: g.system, area: g.area, status: ST_LABEL[ghStatus(g.id)], readings: readings(g.id), targets: targets(g.id), plants: ghPlants(g.id), crops: ghCrops(g.id) })),
+    batches: activeBatches().map(b => ({ id: b.id, crop: cropDef(b.crop).label, gh: ghName(b.ghId), zone: b.zone, plants: b.plants, stage: b.stage, health: b.health, expectedHarvest: b.expectedHarvest, estKg: b.estKg, lastObservation: (b.observations || []).slice(-1)[0] })),
+    openTasks: tasks().filter(t => t.status !== 'Done').map(t => ({ id: t.id, title: t.title, assignee: t.assignee, gh: ghName(t.ghId) || 'Farmwide', priority: t.priority, due: t.due + ' ' + t.time, overdue: isOverdue(t) })),
     inventory: inventory().map(i => ({ id: i.id, name: i.name, category: i.category, qty: i.qty, unit: i.unit, reorderAt: i.threshold, supplier: i.supplier, cost: i.cost, belowReorder: Number(i.qty) < Number(i.threshold) })),
     alerts: activeAlerts().map(a => ({ severity: ST_LABEL[a.sev] || a.sev, title: a.title })),
-    recentHarvests: harvests().slice(0, 10).map(h => ({ id: h.id, crop: CROPS[h.crop]?.label || h.crop, date: h.date, estKg: h.estKg, actualKg: h.actualKg, grade: h.grade })),
+    recentHarvests: harvests().slice(0, 10).map(h => ({ id: h.id, crop: cropDef(h.crop).label, date: h.date, estKg: h.estKg, actualKg: h.actualKg, grade: h.grade })),
     projectedRevenue30d: Math.round(k.rev),
-    orders: Store.all('orders').map(o => ({ id: o.id, status: o.status, customer: o.customer, crop: CROPS[o.crop]?.label || o.crop, kg: o.kg, pricePerKg: o.pricePerKg, date: o.date })),
+    orders: Store.all('orders').map(o => ({ id: o.id, status: o.status, customer: o.customer, crop: cropDef(o.crop).label, kg: o.kg, pricePerKg: o.pricePerKg, date: o.date })),
     expenses: Store.all('expenses').slice(0, 10).map(ex => ({ id: ex.id, amount: ex.amount, date: ex.date, category: ex.category, note: ex.note })),
   });
 }
@@ -2122,6 +3066,9 @@ function checkKnowledgeBase(q, kbList = KB_DATA) {
  */
 function classifyAndRetrieve(q) {
   const s = q.toLowerCase().trim();
+  const ghs = greenhouses();
+  const team = teamMembers();
+  const cropsObj = cropsMap();
 
   // 1. Direct Record ID Lookup: [B-xxx], [T-xxx], [I-xxx], [H-xxx], [SO-xxx], [Greenhouse X]
   const idm = q.match(/\b([BTI]|SO|H)-\d+\b/i);
@@ -2129,46 +3076,45 @@ function classifyAndRetrieve(q) {
     const id = idm[0].toUpperCase();
     const b = Store.get('batches', id), t = Store.get('tasks', id), i = Store.get('inventory', id), h = Store.get('harvests', id);
     if (b) {
-      const g = ghById(b.ghId);
       const obs = (b.observations || []).slice(-1)[0];
-      return `**Crop Batch [${b.id}] Details:**\n• **Crop:** ${CROPS[b.crop]?.label || b.crop} (${b.variety || ''})\n• **Location:** [${g?.name || b.ghId}], Zone ${b.zone}\n• **Population:** ${num(b.plants)} plants\n• **Stage & Health:** ${b.stage} stage (${readiness(b)}% ready), health score **${b.health}%**\n• **Planted:** ${fmtD(b.plantedOn)} | **Expected Harvest:** ${fmtD(b.expectedHarvest)} (~${num(b.estKg)} kg)${obs ? `\n• **Latest Observation:** "${obs.note}" (${obs.by}, ${fmtD(obs.date)})${obs.flag ? ` [Alert: ${obs.flag}]` : ''}` : ''}`;
+      return `**Crop Batch [${b.id}] Details:**\n• **Crop:** ${cropDef(b.crop).label}${b.variety ? ` (${b.variety})` : ''}\n• **Location:** [${ghName(b.ghId)}], Zone ${b.zone}\n• **Population:** ${num(b.plants)} plants\n• **Stage & Health:** ${b.stage} stage (${readiness(b)}% ready), health score **${b.health}%**\n• **Planted:** ${fmtD(b.plantedOn)} | **Expected Harvest:** ${fmtD(b.expectedHarvest)} (~${num(b.estKg)} kg)${obs ? `\n• **Latest Observation:** "${obs.note}" (${obs.by}, ${fmtD(obs.date)})${obs.flag ? ` [Alert: ${obs.flag}]` : ''}` : ''}`;
     }
     if (t) {
-      const g = ghById(t.ghId);
-      return `**Work Order [${t.id}] Details:**\n• **Title:** "${t.title}"\n• **Status:** ${t.status} ${isOverdue(t) ? '(OVERDUE)' : ''}\n• **Assignee:** ${t.assignee}\n• **Location:** [${g?.name || t.ghId || 'Farmwide'}]\n• **Priority:** ${t.priority}\n• **Due Date:** ${fmtD(t.due)} at ${fmtT(t.time)}${t.recurrence && t.recurrence !== 'none' ? ` (Repeats: ${t.recurrence})` : ''}${t.notes ? `\n• **Notes:** ${t.notes}` : ''}`;
+      return `**Work Order [${t.id}] Details:**\n• **Title:** "${t.title}"\n• **Status:** ${t.status} ${isOverdue(t) ? '(OVERDUE)' : ''}\n• **Assignee:** ${t.assignee}\n• **Location:** ${t.ghId ? `[${ghName(t.ghId)}]` : 'Farmwide'}\n• **Priority:** ${t.priority}\n• **Due Date:** ${fmtD(t.due)} at ${fmtT(t.time)}${t.recurrence && t.recurrence !== 'none' ? ` (Repeats: ${t.recurrence})` : ''}${t.notes ? `\n• **Notes:** ${t.notes}` : ''}`;
     }
     if (i) {
       const isLow = Number(i.qty) < Number(i.threshold);
       return `**Inventory Item [${i.id}] Details:**\n• **Name:** ${i.name}\n• **Category:** ${i.category}\n• **Stock on Hand:** ${num(i.qty)} ${i.unit}\n• **Reorder Point:** ${num(i.threshold)} ${i.unit}\n• **Status:** ${isLow ? '⚠️ **Below Reorder Threshold (Reorder Needed)**' : '✓ Stock Level Nominal'}\n• **Supplier:** ${i.supplier || 'Standard Supply'}\n• **Unit Cost:** $${num(i.cost, 2)}`;
     }
     if (h) {
-      const g = ghById(h.ghId);
-      return `**Harvest Record [${h.id}] Details:**\n• **Crop:** ${CROPS[h.crop]?.label || h.crop}\n• **Harvest Date:** ${fmtD(h.date)}\n• **Location:** [${g?.name || h.ghId}], Zone ${h.zone}\n• **Yield:** ${num(h.actualKg)} kg actual (Plan: ${num(h.estKg)} kg)\n• **Quality Grade:** ${h.grade}${h.notes ? `\n• **Notes:** ${h.notes}` : ''}`;
+      return `**Harvest Record [${h.id}] Details:**\n• **Crop:** ${cropDef(h.crop).label}\n• **Harvest Date:** ${fmtD(h.date)}\n• **Location:** [${ghName(h.ghId)}], Zone ${h.zone}\n• **Yield:** ${num(h.actualKg)} kg actual (Plan: ${num(h.estKg)} kg)\n• **Quality Grade:** ${h.grade}${h.notes ? `\n• **Notes:** ${h.notes}` : ''}`;
     }
     const o = Store.get('orders', id);
     if (o) {
-      return `**Sales Order [${o.id}] Details:**\n• **Customer:** ${o.customer}\n• **Crop & Volume:** ${num(o.kg)} kg of ${CROPS[o.crop]?.label || o.crop}\n• **Price:** $${num(o.pricePerKg, 2)}/kg (Total: $${num(o.kg * o.pricePerKg, 2)})\n• **Order Date:** ${fmtD(o.date)}\n• **Status:** ${o.status}\n• **Delivery:** ${o.delivery?.status || 'Scheduled'} (${o.delivery?.vehicle || 'Van'})`;
+      return `**Sales Order [${o.id}] Details:**\n• **Customer:** ${o.customer}\n• **Crop & Volume:** ${num(o.kg)} kg of ${cropDef(o.crop).label}\n• **Price:** $${num(o.pricePerKg, 2)}/kg (Total: $${num(o.kg * o.pricePerKg, 2)})\n• **Order Date:** ${fmtD(o.date)}\n• **Status:** ${o.status}\n• **Delivery:** ${o.delivery?.status || 'Scheduled'} (${o.delivery?.vehicle || 'Van'})`;
     }
   }
 
-  // Check specific Greenhouse name lookup
-  const ghMatch = q.match(/\bGreenhouse\s+([A-D])\b/i) || q.match(/\bGH-([A-D])\b/i);
-  if (ghMatch && (s.includes('status') || s.includes('reading') || s.includes('sensor') || s.includes('how is') || s.includes('temperature') || s.includes('ph') || s.includes('condition') || s.includes('detail'))) {
-    const code = ghMatch[1].toUpperCase();
-    const g = GH.find(x => x.code === code);
-    if (g) {
-      const r = readings(g.id), t = targets(g.id), st = ghStatus(g.id);
-      return `**[${g.name}] Current Environmental Status:**\n• **Overall Status:** ${ST_LABEL[st]} (${g.system}, ${g.area} m²)\n• **Air Temp:** ${num(r.temp, 1)}°C (Target: ${t.temp[0]}–${t.temp[1]}°C)\n• **Humidity:** ${num(r.hum, 0)}% (Target: ${t.hum[0]}–${t.hum[1]}%)\n• **CO₂:** ${num(r.co2, 0)} ppm (Target: ${t.co2[0]}–${t.co2[1]} ppm)\n• **Water Temp:** ${num(r.wt, 1)}°C (Target: ${t.wt[0]}–${t.wt[1]}°C)\n• **pH Level:** ${num(r.ph, 2)} (Target: ${t.ph[0]}–${t.ph[1]})\n• **EC:** ${num(r.ec, 2)} mS/cm (Target: ${t.ec[0]}–${t.ec[1]} mS/cm)\n• **Reservoir Level:** ${num(r.res, 0)}% (Target: ${t.res[0]}–${t.res[1]}%)\n• **Active Plant Count:** ${num(ghPlants(g.id))} plants (${ghCrops(g.id).join(', ') || 'Empty'})\n*(Sensor telemetry values are demo readings)*`;
+  // Check specific Greenhouse name or code lookup dynamically
+  const ghByQuery = ghs.find(x => s.includes(x.name.toLowerCase()) || (x.code && new RegExp(`\\bgh-${x.code.toLowerCase()}\\b`, 'i').test(s)));
+  if (ghByQuery && (s.includes('status') || s.includes('reading') || s.includes('sensor') || s.includes('how is') || s.includes('temperature') || s.includes('ph') || s.includes('condition') || s.includes('detail'))) {
+    const g = ghByQuery;
+    const r = readings(g.id), t = targets(g.id), st = ghStatus(g.id), live = isLiveMode();
+    if (!r) {
+      return `**[${g.name}] Current Environmental Status:**\n• **Overall Status:** ${ST_LABEL[st]} (${g.system}, ${g.area} m²)\n• **Telemetry:** Waiting for live sensor data or manual meter logs.\n• **Active Plant Count:** ${num(ghPlants(g.id))} plants (${ghCrops(g.id).join(', ') || 'Empty'})`;
     }
+    const fmtVal = (val, dec, unit = '') => val != null && Number.isFinite(Number(val)) ? `${num(val, dec)}${unit}` : 'No data';
+    return `**[${g.name}] Current Environmental Status:**\n• **Overall Status:** ${ST_LABEL[st]} (${g.system}, ${g.area} m²)\n• **Air Temp:** ${fmtVal(r.temp, 1, '°C')} (Target: ${t.temp[0]}–${t.temp[1]}°C)\n• **Humidity:** ${fmtVal(r.hum, 0, '%')} (Target: ${t.hum[0]}–${t.hum[1]}%)\n• **CO₂:** ${fmtVal(r.co2, 0, ' ppm')} (Target: ${t.co2[0]}–${t.co2[1]} ppm)\n• **Water Temp:** ${fmtVal(r.wt, 1, '°C')} (Target: ${t.wt[0]}–${t.wt[1]}°C)\n• **pH Level:** ${fmtVal(r.ph, 2)} (Target: ${t.ph[0]}–${t.ph[1]})\n• **EC:** ${fmtVal(r.ec, 2, ' mS/cm')} (Target: ${t.ec[0]}–${t.ec[1]} mS/cm)\n• **Reservoir Level:** ${fmtVal(r.res, 0, '%')} (Target: ${t.res[0]}–${t.res[1]}%)\n• **Active Plant Count:** ${num(ghPlants(g.id))} plants (${ghCrops(g.id).join(', ') || 'Empty'})\n*(${live ? 'Live telemetry mode' : 'Sensor telemetry values are demo readings'})*`;
   }
 
   // 2. Inventory / Reorder Inquiries (strictly farm inventory queries)
   if (/\b(reorder|re-order)\b/.test(s) || (/\b(inventory|supplies|stock)\b/.test(s) && /\b(low|need|short|order|replenish|out of|threshold|status|list)\b/.test(s))) {
     const low = inventory().filter(i => Number(i.qty) < Number(i.threshold));
+    if (!inventory().length) return `No inventory items are currently registered for ${activeFarmName()}. Add supplies in Smart Inventory.`;
     if (!low.length) {
       return `**Inventory Reorder Status:**\nAll ${inventory().length} tracked inventory items are currently above their safety reorder thresholds. No urgent reorders required!`;
     }
-    const lines = low.map(i => `• [${i.id}] **${i.name}**: on hand ${num(i.qty)} ${i.unit} (reorder threshold is ${num(i.threshold)} ${i.unit}) — Supplier: ${i.supplier}, Unit Cost: $${num(i.cost, 2)}`).join('\n');
+    const lines = low.map(i => `• [${i.id}] **${i.name}**: on hand ${num(i.qty)} ${i.unit} (reorder threshold is ${num(i.threshold)} ${i.unit}) — Supplier: ${i.supplier || 'Standard'}, Unit Cost: $${num(i.cost, 2)}`).join('\n');
     return `**Items Below Reorder Point (${low.length} supplies need replenishment):**\n${lines}\n\n*Rule: Trigger replenishment whenever quantity on hand drops below threshold (qty < threshold).*`;
   }
 
@@ -2182,20 +3128,27 @@ function classifyAndRetrieve(q) {
 
   // 3. Greenhouse Attention & Problem Inquiries
   if (/\b(which greenhouse|what greenhouse|greenhouse.*(attention|problem|wrong|alert|alarm|critical|issue))\b/.test(s)) {
-    const bad = GH.filter(g => ghStatus(g.id) !== 'ok');
-    if (!bad.length) return 'All four greenhouses ([Greenhouse A], [Greenhouse B], [Greenhouse C], [Greenhouse D]) are currently operating within their target environmental thresholds.';
+    if (!ghs.length) return `No greenhouses are configured yet for ${activeFarmName()}.`;
+    const bad = ghs.filter(g => ['warn', 'crit'].includes(ghStatus(g.id)));
+    const ghTagList = ghs.map(g => `[${g.name}]`).join(', ');
+    if (!bad.length) {
+      if (isLiveMode() && ghs.every(g => ghStatus(g.id) === 'nodata')) {
+        return `Waiting for live sensor data across ${ghs.length} greenhouse${ghs.length === 1 ? '' : 's'} (${ghTagList}).`;
+      }
+      return `All reporting greenhouses (${ghTagList}) are currently operating within their target environmental thresholds.`;
+    }
     return `**Greenhouses Requiring Immediate Attention:**\n` + bad.map(g => {
       const ghAlerts = alerts().filter(a => a.id.startsWith('sensor-' + g.id));
       const details = ghAlerts.length ? ghAlerts.map(a => a.title).join('; ') : 'Parameters out of target range';
       return `• [${g.name}] is in **${ST_LABEL[ghStatus(g.id)].toUpperCase()}** status: ${details}.`;
-    }).join('\n') + '\n*(Note: Environmental readings are simulated demo data)*';
+    }).join('\n') + (isLiveMode() ? '' : '\n*(Note: Environmental readings are simulated demo data)*');
   }
 
   // 4. Harvest Readiness & Upcoming Schedule
   if (/\b(what.*(ready|harvest|pick)|harvest.*(this week|upcoming|next|soon|schedule)|ready.*harvest|when.*(next harvest|harvesting))\b/.test(s)) {
     const r = activeBatches().filter(b => daysFrom(b.expectedHarvest) <= 7 || b.stage === 'Ready').sort((a, b) => a.expectedHarvest.localeCompare(b.expectedHarvest));
-    if (!r.length) return 'No crop batches are scheduled for harvest in the next 7 days. The next active batches are still in vegetative or flowering stages.';
-    const lines = r.map(b => `• [${b.id}] **${CROPS[b.crop]?.label || b.crop}** in [${ghById(b.ghId)?.name || b.ghId}], Zone ${b.zone}: ~${num(b.estKg)} kg on ${fmtD(b.expectedHarvest)} (${readiness(b)}% ready, stage: ${b.stage})`).join('\n');
+    if (!r.length) return 'No crop batches are scheduled for harvest in the next 7 days.';
+    const lines = r.map(b => `• [${b.id}] **${cropDef(b.crop).label}** in [${ghName(b.ghId)}], Zone ${b.zone}: ~${num(b.estKg)} kg on ${fmtD(b.expectedHarvest)} (${readiness(b)}% ready, stage: ${b.stage})`).join('\n');
     return `**Batches Ready or Due for Harvest within 7 Days:**\n${lines}\n\n*Head to the Harvest Management module to log actual yields and quality grades.*`;
   }
 
@@ -2203,7 +3156,7 @@ function classifyAndRetrieve(q) {
   if (/\b(overdue.*task|task.*overdue)\b/.test(s)) {
     const o = tasks().filter(isOverdue);
     if (!o.length) return 'There are currently no overdue tasks across any greenhouse bays. All scheduled work orders are on track!';
-    return `**Overdue Farmer Work Orders (${o.length} tasks):**\n` + o.map(t => `• [${t.id}] **${t.title}** — Assignee: ${t.assignee}, Location: [${ghById(t.ghId)?.name || 'Farm'}], Due: ${fmtD(t.due)} at ${fmtT(t.time)} (Priority: ${t.priority})`).join('\n');
+    return `**Overdue Farmer Work Orders (${o.length} tasks):**\n` + o.map(t => `• [${t.id}] **${t.title}** — Assignee: ${t.assignee}, Location: [${ghName(t.ghId) || 'Farm'}], Due: ${fmtD(t.due)} at ${fmtT(t.time)} (Priority: ${t.priority})`).join('\n');
   }
 
   if (/\b(task.*(today|due today)|today.*task|tasks.*open|what.*(tasks|work orders))\b/.test(s) && !/\b(general|farming|how to)\b/.test(s)) {
@@ -2212,14 +3165,16 @@ function classifyAndRetrieve(q) {
     return `**Farm Work Orders Summary:**\n• **Due Today (${td.length}):** ${td.map(t => `[${t.id}] "${t.title}" (${t.assignee})`).join('; ') || 'None scheduled for today'}\n• **Total Open Work Orders:** ${allOpen.length} active tasks across farm staff.`;
   }
 
-  // Tasks by assignee
-  const assigneeMatch = s.match(/\b(diego|maria|kwame|li wei|priya)\b/i);
-  if (assigneeMatch && /\b(task|assigned|work|doing|todo)\b/.test(s)) {
-    const person = PEOPLE.find(p => p.name.toLowerCase().includes(assigneeMatch[1].toLowerCase()));
+  // Tasks by assignee (matched dynamically against current teamMembers)
+  if (/\b(task|assigned|work|doing|todo)\b/.test(s)) {
+    const person = team.find(p => {
+      const first = p.name.toLowerCase().split(/\s+/)[0];
+      return s.includes(p.name.toLowerCase()) || (first.length >= 3 && new RegExp(`\\b${first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s));
+    });
     if (person) {
       const pTasks = tasks().filter(t => t.assignee.toLowerCase().includes(person.name.toLowerCase()) && t.status !== 'Done');
       if (!pTasks.length) return `No open work orders currently assigned to ${person.name}.`;
-      return `**Open Tasks Assigned to ${person.name} (${pTasks.length} tasks):**\n` + pTasks.map(t => `• [${t.id}] "${t.title}" in [${ghById(t.ghId)?.name || 'Farm'}], Due: ${fmtD(t.due)} (${t.priority} Priority)`).join('\n');
+      return `**Open Tasks Assigned to ${person.name} (${pTasks.length} tasks):**\n` + pTasks.map(t => `• [${t.id}] "${t.title}" in [${ghName(t.ghId) || 'Farm'}], Due: ${fmtD(t.due)} (${t.priority} Priority)`).join('\n');
     }
   }
 
@@ -2234,18 +3189,25 @@ function classifyAndRetrieve(q) {
   if (/\b(what batches|list batches|active batches|current batches|all batches|growing batches)\b/.test(s)) {
     const act = activeBatches();
     if (!act.length) return 'No active crop batches currently registered on the farm.';
-    return `**Active Crop Batches (${act.length} batches):**\n` + act.map(b => `• [${b.id}] **${CROPS[b.crop]?.label || b.crop}** in [${ghById(b.ghId)?.name || b.ghId}] (Zone ${b.zone}) — ${num(b.plants)} plants, Stage: ${b.stage}, Health: ${b.health}%, Expected: ${fmtD(b.expectedHarvest)}`).join('\n');
+    return `**Active Crop Batches (${act.length} batches):**\n` + act.map(b => `• [${b.id}] **${cropDef(b.crop).label}** in [${ghName(b.ghId)}] (Zone ${b.zone}) — ${num(b.plants)} plants, Stage: ${b.stage}, Health: ${b.health}%, Expected: ${fmtD(b.expectedHarvest)}`).join('\n');
   }
 
   // 8. Crops Grown on Farm
   if (/\b(what crops.*(grow|support|planted)|crops.*(on this farm|we grow|farm grow))\b/.test(s)) {
-    const cropList = Object.entries(CROPS).map(([k, c]) => `• **${c.label}**: ${c.cycle}-day cycle, wholesale price $${c.price.toFixed(2)}/kg, optimal pH ${c.ph[0]}–${c.ph[1]}`).join('\n');
-    return `**Crops Cultivated at Riverside Hydro Farm:**\n${cropList}`;
+    const entries = Object.values(cropsObj);
+    if (!entries.length) return `No crop profiles are configured yet for ${activeFarmName()}. Add crops in Plant Management.`;
+    const cropList = entries.map(c => `• **${c.label}**: ${c.cycle}-day cycle, wholesale price $${Number(c.price || 0).toFixed(2)}/kg, optimal pH ${c.ph[0]}–${c.ph[1]}`).join('\n');
+    return `**Crops Cultivated at ${activeFarmName()}:**\n${cropList}`;
   }
 
   // 9. Farm Staff & Team
   if (/\b(who works|farm staff|team members|farm workers|who is on the team|farm team)\b/.test(s)) {
-    return `**Riverside Hydro Farm Staff:**\n` + PEOPLE.map(p => `• **${p.name}** — ${p.role}`).join('\n') + `\n• **Jordan Reyes** — Farm Owner\n\n*You can switch roles in the top-right profile menu to test different permission levels.*`;
+    const cu = currentUser();
+    const lines = team.map(p => `• **${p.name}** — ${p.role}`);
+    if (!team.some(p => p.name.toLowerCase() === cu.name.toLowerCase())) {
+      lines.push(`• **${cu.name}** — ${cu.role}`);
+    }
+    return `**${activeFarmName()} Staff:**\n${lines.join('\n')}\n\n*You can manage team members in Farmer Tasks or switch demo roles in the top-right profile menu.*`;
   }
 
   // 10. Sensor Telemetry Tracked
@@ -2265,7 +3227,7 @@ function classifyAndRetrieve(q) {
   // 12. Farm Overall KPIs & Scale
   if (/\b(how many plants|total (active )?plants|total plants growing|total crop|plant count)\b/.test(s)) {
     const k = kpis();
-    return `**Current Farm Scale:**\n• **Total Active Plants:** ${num(k.plants)} growing plants\n• **Active Batches:** ${k.batches} batches across ${k.gOn} operational greenhouses\n• **Average Canopy Health:** ${num(k.health, 1)}%\n• **Projected 30-Day Harvest:** ~${num(k.f30kg)} kg (${money(k.rev)} estimated value)`;
+    return `**Current Farm Scale (${activeFarmName()}):**\n• **Total Active Plants:** ${num(k.plants)} growing plants\n• **Active Batches:** ${k.batches} batches across ${k.gOn} operational greenhouses\n• **Average Canopy Health:** ${num(k.health, 1)}%\n• **Projected 30-Day Harvest:** ~${num(k.f30kg)} kg (${money(k.rev)} estimated value)`;
   }
 
   if (/\b(projected revenue|30[- ]day revenue|revenue projection|expected revenue)\b/.test(s)) {
@@ -2279,28 +3241,32 @@ function classifyAndRetrieve(q) {
 • **Operations:** Dashboard (KPIs & live status), Plant Management (crop batches & growth stages), Greenhouse Management (environmental telemetry & target ranges), Harvest Management (yield logs & grading), Farmer Tasks (work order dispatch), Smart Inventory (supplies & reorder automation).
 • **AI & Intelligence:** Crop Nutrition (formulations & dosing), Disease Detection (vision diagnostic check), Farm Assistant (real-time data + agronomic advice), Production Forecast (harvest predictions with 90% confidence bands).
 • **Business & Monitoring:** Yield Analytics (productivity per m²), Financial Dashboard (P&L and monthly revenue), Sales (customer orders & pipeline), Logistics (delivery dispatch), Smart Alerts (environmental, stock & overdue warnings).
-• **Navigation Tips:** Use the sidebar on desktop or the menu button on mobile. Use the top search bar (or press '/') to jump to any batch, task, or inventory item, and switch farms or roles in the top bar.`;
+• **Navigation Tips:** Use the sidebar on desktop or the menu button on mobile. Use the top search bar (or press '/') to jump to any batch, task, or inventory item, and switch roles in the top bar.`;
   }
 
   // 14. Crop Location & Zone Breakdown
   if (/\b(what.*growing in greenhouse|crops in greenhouse|where.*(strawberry|strawberries|tomato|tomatoes|lettuce|basil))\b/.test(s)) {
-    return `**Current Crop Canopy Distribution:**\n` + GH.map(g => {
+    if (!ghs.length) return `No greenhouses are configured yet for ${activeFarmName()}.`;
+    return `**Current Crop Canopy Distribution:**\n` + ghs.map(g => {
       const bList = activeBatches().filter(b => b.ghId === g.id);
-      return `• [${g.name}] (${g.system}): ${bList.map(b => `${CROPS[b.crop]?.label || b.crop} in Zone ${b.zone} [${b.id}] (${num(b.plants)} plants)`).join(', ') || 'No active batches'}`;
+      return `• [${g.name}] (${g.system}): ${bList.map(b => `${cropDef(b.crop).label} in Zone ${b.zone} [${b.id}] (${num(b.plants)} plants)`).join(', ') || 'No active batches'}`;
     }).join('\n');
   }
 
   // 15. Recent Harvests
   if (/\b(recent harvest|last harvest|harvest history)\b/.test(s)) {
     const recent = harvests().slice(0, 5);
-    return `**Recent Harvest Records:**\n` + recent.map(h => `• [${h.id}] **${CROPS[h.crop]?.label || h.crop}** on ${fmtD(h.date)}: ${num(h.actualKg)} kg (${h.grade}) in [${ghById(h.ghId)?.name || h.ghId}]`).join('\n');
+    if (!recent.length) return 'No harvest records have been logged yet.';
+    return `**Recent Harvest Records:**\n` + recent.map(h => `• [${h.id}] **${cropDef(h.crop).label}** on ${fmtD(h.date)}: ${num(h.actualKg)} kg (${h.grade}) in [${ghName(h.ghId)}]`).join('\n');
   }
 
   // 16. Deliveries & Orders
   if (/\b(deliver(y|ies)|out for delivery|upcoming delivery)\b/.test(s)) {
-    const activeOrders = orders().filter(o => o.status !== 'Delivered').slice(0, 5);
+    const allOs = orders();
+    if (!allOs.length) return 'No customer sales orders have been created yet.';
+    const activeOrders = allOs.filter(o => o.status !== 'Delivered' && o.status !== 'Cancelled').slice(0, 5);
     if (!activeOrders.length) return 'All customer orders are currently fulfilled and delivered.';
-    return `**Active Deliveries & Sales Orders:**\n` + activeOrders.map(o => `• [${o.id}] **${o.customer}**: ${num(o.kg)} kg of ${CROPS[o.crop]?.label || o.crop} — Status: ${o.status} (${o.delivery?.status || 'Scheduled'})`).join('\n');
+    return `**Active Deliveries & Sales Orders:**\n` + activeOrders.map(o => `• [${o.id}] **${o.customer}**: ${num(o.kg)} kg of ${cropDef(o.crop).label} — Status: ${o.status} (${o.delivery?.status || 'Scheduled'})`).join('\n');
   }
 
   // Not a direct retrieval match -> Delegate to LLM (Gemini) for agricultural reasoning, technology recommendations, or general farming knowledge!
@@ -2424,97 +3390,157 @@ function simulatedAnswer(q) {
 
 /* ================= AI: Production Forecast ================= */
 function vForecast() {
-  const H = ui.fcRange, items = forecastItems(H);
+  const H = ui.fcRange, items = forecastItems(H), live = isLiveMode(), cropsObj = cropsMap();
   const weeks = []; for (let w = 0; w < H / 7; w++) weeks.push({ from: w * 7, to: w * 7 + 6 });
-  const crops = Object.keys(CROPS), ratios = Object.fromEntries(crops.map(c => [c, historicalRatio(c)]));
-  const rows = weeks.map(w => { const it = items.filter(i => i.day >= w.from && i.day <= w.to); const plan = it.reduce((s, i) => s + i.kg, 0); const exp = it.reduce((s, i) => s + i.kg * ratios[i.crop].ratio, 0); const sd = Math.sqrt(it.reduce((s, i) => s + (i.kg * ratios[i.crop].ratio * ratios[i.crop].cv) ** 2, 0)); return { ...w, plan, exp, lo: Math.max(0, exp - 1.64 * sd), hi: exp + 1.64 * sd, byCrop: Object.fromEntries(crops.map(c => [c, it.filter(i => i.crop === c).reduce((s, i) => s + i.kg * ratios[c].ratio, 0)])) }; });
+  const crops = [...new Set([...Object.keys(cropsObj), ...items.map(i => i.crop)])];
+  const ratios = Object.fromEntries(crops.map(c => [c, historicalRatio(c)]));
+  const rows = weeks.map(w => { const it = items.filter(i => i.day >= w.from && i.day <= w.to); const plan = it.reduce((s, i) => s + i.kg, 0); const exp = it.reduce((s, i) => s + i.kg * (ratios[i.crop]?.ratio || 1), 0); const sd = Math.sqrt(it.reduce((s, i) => s + (i.kg * (ratios[i.crop]?.ratio || 1) * (ratios[i.crop]?.cv || 0.08)) ** 2, 0)); return { ...w, plan, exp, lo: Math.max(0, exp - 1.64 * sd), hi: exp + 1.64 * sd, byCrop: Object.fromEntries(crops.map(c => [c, it.filter(i => i.crop === c).reduce((s, i) => s + i.kg * (ratios[c]?.ratio || 1), 0)])) }; });
   const tot = rows.reduce((s, r) => s + r.exp, 0), totPlan = rows.reduce((s, r) => s + r.plan, 0), totLo = rows.reduce((s, r) => s + r.lo, 0), totHi = rows.reduce((s, r) => s + r.hi, 0);
-  const totRev = items.reduce((s, i) => s + i.kg * ratios[i.crop].ratio * CROPS[i.crop].price, 0);
-  return `${pageHead('Production Forecast', 'Upcoming harvest volume from planting schedules and historical yield.', SIM_TAG + seg('fcRange', [[28, '4 weeks'], [56, '8 weeks'], [84, '12 weeks']], H, 'Forecast horizon'))}
-  <div class="notice">${ic('info')}<div>Statistical estimate from batch plans and past harvest records, calculated in the page. Not a connected AI model. Weather and pest events are not modeled.</div></div>
-  <div class="stats">${[['Expected volume', num(tot) + ' kg'], ['90% range', `${num(totLo)}–${num(totHi)} kg`], ['Plan (batch estimates)', num(totPlan) + ' kg'], ['Projected value', money(totRev)]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
-  ${card('Weekly forecast', `<div class="chart-box tall">${makeChart('cFc', { type: 'bar', aria: 'Weekly expected harvest volume with 90 percent range', data: { labels: rows.map(r => 'Wk of ' + fmtD(dOff(r.from))), datasets: [
-    ...crops.map(c => ({ label: CROPS[c].label, data: rows.map(r => Math.round(r.byCrop[c])), backgroundColor: col(CROP_COLOR[c]), stack: 's', borderRadius: 3, order: 2 })),
+  const totRev = items.reduce((s, i) => s + i.kg * (ratios[i.crop]?.ratio || 1) * cropDef(i.crop).price, 0);
+  const fcBody = live && !items.length
+    ? empty('trend', 'No active crop batches to forecast', 'Add crop batches in Plant Management under Live Data mode to generate production forecasts.')
+    : `<div class="chart-box tall">${makeChart('cFc', { type: 'bar', aria: 'Weekly expected harvest volume with 90 percent range', data: { labels: rows.map(r => 'Wk of ' + fmtD(dOff(r.from))), datasets: [
+    ...crops.map(c => ({ label: cropDef(c).label, data: rows.map(r => Math.round(r.byCrop[c])), backgroundColor: col(cropColorVar(c)), stack: 's', borderRadius: 3, order: 2 })),
     { type: 'bar', label: '90% range', data: rows.map(r => [Math.round(r.lo), Math.round(r.hi)]), backgroundColor: 'transparent', borderColor: col('--fg'), borderWidth: { top: 2, bottom: 2, left: 0, right: 0 }, borderSkipped: false, barPercentage: .25, grouped: false, order: 1 },
     { type: 'line', label: 'Plan', data: rows.map(r => Math.round(r.plan)), borderColor: col('--muted'), borderDash: [4, 4], pointRadius: 3, pointBackgroundColor: col('--muted'), order: 0 }] },
-    options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: false, beginAtZero: true, title: { display: true, text: 'kg' } } } } })}</div>`, { sub: 'Stacked bars: expected kg by crop · whiskers: 90% range · dashed: plan' })}
+    options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: false, beginAtZero: true, title: { display: true, text: 'kg' } } } } })}</div>`;
+  return `${pageHead('Production Forecast', 'Upcoming harvest volume from planting schedules and historical yield.', aiModeTag() + seg('fcRange', [[28, '4 weeks'], [56, '8 weeks'], [84, '12 weeks']], H, 'Forecast horizon'))}
+  <div class="notice">${ic('info')}<div>Statistical estimate from batch plans and past harvest records, calculated in the page. Not a connected AI model. Weather and pest events are not modeled.</div></div>
+  <div class="stats">${[['Expected volume', items.length ? num(tot) + ' kg' : '—'], ['90% range', items.length ? `${num(totLo)}–${num(totHi)} kg` : '—'], ['Plan (batch estimates)', num(totPlan) + ' kg'], ['Projected value', items.length ? money(totRev) : '—']].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  ${card('Weekly forecast', fcBody, { sub: 'Stacked bars: expected kg by crop · whiskers: 90% range · dashed: plan' })}
   <div class="grid g-2">
-    ${card('Assumptions', `<ul class="list-plain"><li>Each active batch is harvested on its expected date. Lettuce and basil are single harvests.</li><li>Tomatoes and strawberries in flowering or fruiting stage are picked weekly at the batch's estimated pick size.</li><li>Expected kg = plan × the crop's average actual-to-estimate ratio from past records.</li><li>Uncertainty uses each crop's historical variation (minimum 8%), combined across picks; range is ±1.64 σ (90%).</li><li>Prices for projected value: ${crops.map(c => `${c} $${CROPS[c].price.toFixed(2)}/kg`).join(', ')}.</li></ul>`)}
-    ${card('Historical yield accuracy', `<div class="tbl-wrap"><table><thead><tr><th>Crop</th><th class="r">Records</th><th class="r">Actual ÷ estimate</th><th class="r">Variation</th></tr></thead><tbody>${crops.map(c => `<tr><td>${CROPS[c].label}</td><td class="r num">${ratios[c].n}</td><td class="r num">${num(ratios[c].ratio * 100, 1)}%</td><td class="r num">±${num(ratios[c].cv * 100, 1)}%</td></tr>`).join('')}</tbody></table></div>`)}
+    ${card('Assumptions', `<ul class="list-plain"><li>Each active batch is harvested on its expected date. Single-harvest crops count once; continuous crops (or long cycles) pick weekly at estimated pick size.</li><li>Expected kg = plan × the crop's average actual-to-estimate ratio from past records.</li><li>Uncertainty uses each crop's historical variation (minimum 8%), combined across picks; range is ±1.64 σ (90%).</li><li>Prices for projected value: ${crops.length ? crops.map(c => `${esc(cropDef(c).label)} $${Number(cropDef(c).price || 0).toFixed(2)}/kg`).join(', ') : 'none configured'}.</li></ul>`)}
+    ${card('Historical yield accuracy', crops.length ? `<div class="tbl-wrap"><table><thead><tr><th>Crop</th><th class="r">Records</th><th class="r">Actual ÷ estimate</th><th class="r">Variation</th></tr></thead><tbody>${crops.map(c => `<tr><td>${esc(cropDef(c).label)}</td><td class="r num">${ratios[c].n}</td><td class="r num">${ratios[c].n ? num(ratios[c].ratio * 100, 1) + '%' : '—'}</td><td class="r num">±${num(ratios[c].cv * 100, 1)}%</td></tr>`).join('')}</tbody></table></div>` : empty('sprout', 'No crops configured', 'Add crops in Plant Management to track historical yield accuracy.'))}
   </div>`;
 }
 
 /* ================= Business ================= */
-function monthKey(s) { return s.slice(0, 7); }
+function monthKey(s) { return String(s || '').slice(0, 7); }
 function lastMonths(n) { const out = []; for (let m = n - 1; m >= 0; m--) { const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - m, 1); out.push(iso(d).slice(0, 7)); } return out; }
 const mLabel = k => parseD(k + '-01').toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
 function vYield() {
-  const months = lastMonths(6), hs = harvests().filter(h => monthKey(h.date) >= months[0]), crops = Object.keys(CROPS);
-  const tot = hs.reduce((s, h) => s + h.actualKg, 0);
-  const area = GH.reduce((s, g) => s + g.area, 0);
-  const grades = ['A', 'B', 'C'].map(g => hs.filter(h => h.grade === g).reduce((s, h) => s + h.actualKg, 0));
+  const months = lastMonths(6), hs = harvests().filter(h => monthKey(h.date) >= months[0]), live = isLiveMode();
+  const ghs = greenhouses(), cropsObj = cropsMap();
+  const crops = [...new Set([...Object.keys(cropsObj), ...hs.map(h => h.crop).filter(Boolean)])];
+  const tot = hs.reduce((s, h) => s + Number(h.actualKg || 0), 0);
+  const area = ghs.reduce((s, g) => s + Number(g.area || 0), 0);
+  const grades = ['A', 'B', 'C'].map(g => hs.filter(h => h.grade === g).reduce((s, h) => s + Number(h.actualKg || 0), 0));
+  const ymBody = live && !hs.length
+    ? empty('bar', 'No harvest analytics yet', 'Recorded harvests in Live Data mode will appear by month and crop here.')
+    : `<div class="chart-box tall">${makeChart('cYm', { type: 'bar', aria: 'Monthly harvested kg by crop', data: { labels: months.map(mLabel), datasets: crops.map(c => ({ label: cropDef(c).label, data: months.map(m => hs.filter(h => h.crop === c && monthKey(h.date) === m).reduce((s, h) => s + Number(h.actualKg || 0), 0)), backgroundColor: col(cropColorVar(c)), borderRadius: 4, stack: 's' })) }, options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'kg' } } } } })}</div>`;
+  const grBody = live && !hs.length
+    ? empty('basket', 'No quality grade data yet', 'Harvest grade breakdowns appear once harvests are logged.')
+    : `<div class="chart-box tall">${makeChart('cGr', { type: 'doughnut', aria: 'Share of harvested weight by grade', data: { labels: ['Grade A', 'Grade B', 'Grade C'], datasets: [{ data: grades, backgroundColor: [col('--c1'), col('--warn'), col('--crit')], borderColor: col('--card'), borderWidth: 3 }] }, options: { cutout: '62%', plugins: { legend: { position: 'bottom' } } } })}</div>`;
   return `${pageHead('Yield Analytics', 'Harvested volume, productivity and quality over the last 6 months.', '')}
-  <div class="stats">${[['Harvested, 6 months', num(tot) + ' kg'], ['Per m² growing area', num(tot / area, 1) + ' kg'], ['Grade A by weight', num(grades[0] / Math.max(1, tot) * 100, 0) + '%'], ['Harvest records', hs.length]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  <div class="stats">${[['Harvested, 6 months', num(tot) + ' kg'], ['Per m² growing area', hs.length && area > 0 ? num(tot / area, 1) + ' kg' : '—'], ['Grade A by weight', tot > 0 ? num(grades[0] / tot * 100, 0) + '%' : '—'], ['Harvest records', hs.length]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   <div class="grid g-main">
-    ${card('Monthly yield by crop', `<div class="chart-box tall">${makeChart('cYm', { type: 'bar', aria: 'Monthly harvested kg by crop', data: { labels: months.map(mLabel), datasets: crops.map(c => ({ label: CROPS[c].label, data: months.map(m => hs.filter(h => h.crop === c && monthKey(h.date) === m).reduce((s, h) => s + h.actualKg, 0)), backgroundColor: col(CROP_COLOR[c]), borderRadius: 4, stack: 's' })) }, options: { scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, title: { display: true, text: 'kg' } } } } })}</div>`)}
-    ${card('Quality grades', `<div class="chart-box tall">${makeChart('cGr', { type: 'doughnut', aria: 'Share of harvested weight by grade', data: { labels: ['Grade A', 'Grade B', 'Grade C'], datasets: [{ data: grades, backgroundColor: [col('--c1'), col('--warn'), col('--crit')], borderColor: col('--card'), borderWidth: 3 }] }, options: { cutout: '62%', plugins: { legend: { position: 'bottom' } } } })}</div>`, { sub: 'By harvested weight' })}
+    ${card('Monthly yield by crop', ymBody)}
+    ${card('Quality grades', grBody, { sub: 'By harvested weight' })}
   </div>
-  ${card('By crop', `<div class="tbl-wrap"><table><thead><tr><th>Crop</th><th>Greenhouse</th><th class="r">Harvested</th><th class="r">Harvests</th><th class="r">Avg per harvest</th><th class="r">Actual vs estimate</th><th class="r">kg per m²</th></tr></thead><tbody>${crops.map(c => { const x = hs.filter(h => h.crop === c), kg = x.reduce((s, h) => s + h.actualKg, 0), est = x.reduce((s, h) => s + h.estKg, 0), g = GH.find(g => g.main === c); return `<tr><td><b>${CROPS[c].label}</b></td><td>${g.name}</td><td class="r num">${num(kg)} kg</td><td class="r num">${x.length}</td><td class="r num">${num(kg / Math.max(1, x.length), 1)} kg</td><td class="r num">${num(kg / Math.max(1, est) * 100, 1)}%</td><td class="r num">${num(kg / g.area, 1)}</td></tr>`; }).join('')}</tbody></table></div>`)}`;
+  ${card('By crop', crops.length ? `<div class="tbl-wrap"><table><thead><tr><th>Crop</th><th>Greenhouse</th><th class="r">Harvested</th><th class="r">Harvests</th><th class="r">Avg per harvest</th><th class="r">Actual vs estimate</th><th class="r">kg per m²</th></tr></thead><tbody>${crops.map(c => { const x = hs.filter(h => h.crop === c), kg = x.reduce((s, h) => s + Number(h.actualKg || 0), 0), est = x.reduce((s, h) => s + Number(h.estKg || 0), 0); const matchGhs = ghs.filter(g => g.main === c || x.some(h => h.ghId === g.id)); const gArea = matchGhs.reduce((s, g) => s + Number(g.area || 0), 0); const gLabel = matchGhs.map(g => g.name).join(', ') || '—'; return `<tr><td><b>${esc(cropDef(c).label)}</b></td><td>${esc(gLabel)}</td><td class="r num">${num(kg)} kg</td><td class="r num">${x.length}</td><td class="r num">${x.length ? num(kg / x.length, 1) + ' kg' : '—'}</td><td class="r num">${est > 0 ? num(kg / est * 100, 1) + '%' : '—'}</td><td class="r num">${x.length && gArea > 0 ? num(kg / gArea, 1) : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : empty('sprout', 'No crops to summarize', 'Add crops or log harvests to see crop productivity.'))}`;
 }
 function vFinance() {
   if (!can('finance') && !can('financeView')) return pageHead('Financial Dashboard', '') + noPerm('The financial dashboard');
-  const months = lastMonths(6), os = orders().filter(o => o.status === 'Delivered' && monthKey(o.date) >= months[0]);
+  const months = lastMonths(6), os = orders().filter(o => o.status === 'Delivered' && monthKey(o.date) >= months[0]), live = isLiveMode();
   const ex = Store.all('expenses').filter(e => monthKey(e.date) >= months[0]);
   const rev = months.map(m => os.filter(o => monthKey(o.date) === m).reduce((s, o) => s + o.kg * o.pricePerKg, 0));
   const exp = months.map(m => ex.filter(e => monthKey(e.date) === m).reduce((s, e) => s + Number(e.amount), 0));
   const totR = rev.reduce((a, b) => a + b, 0), totE = exp.reduce((a, b) => a + b, 0), k = kpis();
   const cats = [...new Set(ex.map(e => e.category))].map(c => [c, ex.filter(e => e.category === c).reduce((s, e) => s + Number(e.amount), 0)]).sort((a, b) => b[1] - a[1]);
   const recent = Store.all('expenses').filter(e => !e.demo).sort((a, b) => b.date.localeCompare(a.date));
+  const marginPct = totR > 0 ? ` (${num((totR - totE) / totR * 100, 0)}%)` : '';
+  const finChartBody = live && !os.length && !ex.length
+    ? empty('wallet', 'No financial records yet', 'Delivered sales orders and recorded expenses in Live Data mode will populate this chart.')
+    : `<div class="chart-box tall">${makeChart('cFin', { type: 'bar', aria: 'Monthly actual revenue and expenses', data: { labels: months.map(mLabel), datasets: [{ label: 'Actual revenue', data: rev.map(Math.round), backgroundColor: col('--accent'), borderRadius: 4 }, { label: 'Expenses', data: exp, backgroundColor: col('--c2'), borderRadius: 4 }, { type: 'line', label: 'Margin', data: rev.map((r, i) => Math.round(r - exp[i])), borderColor: col('--fg'), pointRadius: 3, tension: .3 }] }, options: { scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => '$' + (v / 1000) + 'k' } } } } })}</div><p class="small muted" style="margin-top:8px">${live ? 'Revenue counts delivered sales orders only. Accounting sync (e.g. QuickBooks, Xero) is not connected.' : 'Revenue counts delivered sales orders only. Expense months before this one are sample monthly totals. Accounting sync (e.g. QuickBooks, Xero) is not connected.'}</p>`;
+  const catsBody = cats.length
+    ? `<div class="tbl-wrap"><table><tbody>${cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td style="width:45%"><div class="bar"><i style="width:${cats[0][1] > 0 ? v / cats[0][1] * 100 : 0}%;background:var(--c2)"></i></div></td><td class="r num">${money(v)}</td></tr>`).join('')}</tbody></table></div>`
+    : empty('wallet', 'No expenses by category yet', 'Recorded expenses will be grouped by category here.');
   return `${pageHead('Financial Dashboard', 'Recorded revenue and expenses for the last 6 months.', can('finance') ? `<button class="btn primary" data-act="expense-new">${ic('plus')}Record expense</button>` : '')}
-  <div class="stats">${[['Actual revenue (delivered sales)', money(totR)], ['Recorded expenses', money(totE)], ['Operating margin', money(totR - totE) + ` (${num((totR - totE) / Math.max(1, totR) * 100, 0)}%)`]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}<div class="pill-stat" style="border-style:dashed"><b>${money(k.rev)}</b><span><span class="tag proj">Projection</span> Harvest revenue, next 30 days. Not actual sales.</span></div></div>
-  ${card('Revenue vs expenses', `<div class="chart-box tall">${makeChart('cFin', { type: 'bar', aria: 'Monthly actual revenue and expenses', data: { labels: months.map(mLabel), datasets: [{ label: 'Actual revenue', data: rev.map(Math.round), backgroundColor: col('--accent'), borderRadius: 4 }, { label: 'Expenses', data: exp, backgroundColor: col('--c2'), borderRadius: 4 }, { type: 'line', label: 'Margin', data: rev.map((r, i) => Math.round(r - exp[i])), borderColor: col('--fg'), pointRadius: 3, tension: .3 }] }, options: { scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => '$' + (v / 1000) + 'k' } } } } })}</div><p class="small muted" style="margin-top:8px">Revenue counts delivered sales orders only. Expense months before this one are sample monthly totals. Accounting sync (e.g. QuickBooks, Xero) is not connected.</p>`, { sub: 'Monthly, actual figures only' })}
+  <div class="stats">${[['Actual revenue (delivered sales)', money(totR)], ['Recorded expenses', money(totE)], ['Operating margin', money(totR - totE) + marginPct]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}<div class="pill-stat" style="border-style:dashed"><b>${k.f30kg ? money(k.rev) : '—'}</b><span><span class="tag proj">Projection</span> Harvest revenue, next 30 days. Not actual sales.</span></div></div>
+  ${card('Revenue vs expenses', finChartBody, { sub: 'Monthly, actual figures only' })}
   <div class="grid g-2">
-    ${card('Expenses by category', `<div class="tbl-wrap"><table><tbody>${cats.map(([c, v]) => `<tr><td>${esc(c)}</td><td style="width:45%"><div class="bar"><i style="width:${v / cats[0][1] * 100}%;background:var(--c2)"></i></div></td><td class="r num">${money(v)}</td></tr>`).join('')}</tbody></table></div>`, { sub: '6 months' })}
-    ${card('Recently recorded expenses', recent.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th class="r">Amount</th></tr></thead><tbody>${recent.slice(0, 10).map(e => `<tr><td class="num">${fmtD(e.date)}</td><td>${esc(e.category)}</td><td class="small">${esc(e.note)}</td><td class="r num">${money(e.amount)}</td></tr>`).join('')}</tbody></table></div>` : empty('wallet', 'No expenses recorded yet', can('finance') ? 'Record an expense to add it to this month.' : 'The farm owner records expenses.'))}
+    ${card('Expenses by category', catsBody, { sub: '6 months' })}
+    ${card('Recently recorded expenses', recent.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Note</th><th class="r">Amount</th>${can('finance') ? '<th><span class="sr">Actions</span></th>' : ''}</tr></thead><tbody>${recent.slice(0, 12).map(e => `<tr><td class="num">${fmtD(e.date)}</td><td>${esc(e.category)}</td><td class="small">${esc(e.note)}</td><td class="r num">${money(e.amount)}</td>${can('finance') ? `<td class="r"><button class="btn sm ghost" data-act="expense-edit" data-id="${esc(e.id)}">Edit</button></td>` : ''}</tr>`).join('')}</tbody></table></div>` : empty('wallet', 'No expenses recorded yet', can('finance') ? 'Record an expense to add it to this month.' : 'The farm owner records expenses.'))}
   </div>`;
 }
-function expenseForm() {
-  openModal({ title: 'Record expense', submitLabel: 'Save expense', body: `<div class="form-grid">${fld('Date', `<input id="e-date" name="date" type="date" value="${dOff(0)}" max="${dOff(0)}">`, 'date')}${fld('Category', `<select id="e-cat" name="category">${['Energy', 'Labor', 'Nutrients', 'Seeds & plugs', 'Packaging', 'Maintenance', 'Logistics', 'Other'].map(c => `<option>${c}</option>`).join('')}</select>`, 'category')}${fld('Amount ($)', `<input id="e-amt" name="amount" type="number" min="0" step="0.01" inputmode="decimal">`, 'amount')}${fld('Note', `<input id="e-note" name="note" placeholder="Invoice or description">`, 'note')}</div>`,
+function expenseForm(id) {
+  const existing = id ? Store.get('expenses', id) : null;
+  const ex = existing || { date: dOff(0), category: 'Energy', amount: '', note: '' };
+  openModal({
+    title: existing ? 'Edit expense' : 'Record expense',
+    submitLabel: existing ? 'Save changes' : 'Save expense',
+    footer: existing && can('finance') ? `<button type="button" class="btn danger" data-act="expense-delete" data-id="${esc(existing.id)}">Delete</button>` : '',
+    body: `<div class="form-grid">${fld('Date', `<input id="e-date" name="date" type="date" value="${esc(ex.date)}" max="${dOff(0)}">`, 'date')}${fld('Category', `<select id="e-cat" name="category">${['Energy', 'Labor', 'Nutrients', 'Seeds & plugs', 'Packaging', 'Maintenance', 'Logistics', 'Other'].map(c => `<option ${ex.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`, 'category')}${fld('Amount ($)', `<input id="e-amt" name="amount" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(ex.amount)}">`, 'amount')}${fld('Note', `<input id="e-note" name="note" value="${esc(ex.note || '')}" placeholder="Invoice or description">`, 'note')}</div>`,
     validate: d => ({ amount: !(+d.amount > 0) && 'Enter an amount greater than $0.', date: !d.date && 'Choose a date.', note: !d.note.trim() && 'Add a short description.' }),
-    submit: async d => { await Store.put('expenses', { id: uid('E'), ...d, amount: +d.amount }); return 'Expense recorded.'; } });
+    submit: async d => {
+      const doc = { ...(existing || { id: uid('E') }), ...d, amount: +d.amount, note: d.note.trim() };
+      await Store.put('expenses', doc);
+      return existing ? 'Expense updated.' : 'Expense recorded.';
+    }
+  });
 }
 const ORDER_ST = ['Draft', 'Confirmed', 'Packed', 'Delivered', 'Cancelled'];
 function vSales() {
   const q = ui.saleF.toLowerCase();
-  const os = orders().filter(o => !q || `${o.id} ${o.customer} ${o.crop} ${o.status}`.toLowerCase().includes(q));
-  const open = orders().filter(o => !['Delivered', 'Cancelled'].includes(o.status));
-  const m = monthKey(dOff(0)), mtd = orders().filter(o => o.status === 'Delivered' && monthKey(o.date) === m).reduce((s, o) => s + o.kg * o.pricePerKg, 0);
+  const allOs = orders();
+  const os = allOs.filter(o => !q || `${o.id} ${o.customer} ${o.crop} ${cropDef(o.crop).label} ${o.status}`.toLowerCase().includes(q));
+  const open = allOs.filter(o => !['Delivered', 'Cancelled'].includes(o.status));
+  const m = monthKey(dOff(0)), mtd = allOs.filter(o => o.status === 'Delivered' && monthKey(o.date) === m).reduce((s, o) => s + o.kg * o.pricePerKg, 0);
   return `${pageHead('Sales', 'Customer orders. Only delivered orders count as actual revenue.', can('sales') ? `<button class="btn primary" data-act="order-new">${ic('plus')}New order</button>` : '')}
-  <div class="stats">${[['Delivered this month', money(mtd)], ['Open orders', open.length], ['Open order value', money(open.reduce((s, o) => s + o.kg * o.pricePerKg, 0))], ['Customers', new Set(orders().map(o => o.customer)).size]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  <div class="stats">${[['Delivered this month', money(mtd)], ['Open orders', open.length], ['Open order value', money(open.reduce((s, o) => s + o.kg * o.pricePerKg, 0))], ['Customers', new Set(allOs.map(o => o.customer)).size]].map(([l, v]) => `<div class="pill-stat"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
   ${card('Orders', `<div class="toolbar" style="margin-bottom:12px"><label class="sr" for="so-q">Search orders</label><input id="so-q" class="input grow" type="search" placeholder="Search by order, customer, crop or status" value="${esc(ui.saleF)}" data-filter="saleF"></div>
-  ${os.length ? `<div class="tbl-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Crop</th><th class="r">Qty</th><th class="r">Value</th><th>Delivery date</th><th>Status</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${os.slice(0, 40).map(o => `<tr><td class="mono">${o.id}</td><td>${esc(o.customer)}</td><td>${CROPS[o.crop]?.label || esc(o.crop)}</td><td class="r num">${num(o.kg)} kg</td><td class="r num">${money(o.kg * o.pricePerKg)}</td><td class="num">${fmtD(o.date)}</td><td>${orderBadge(o.status)}</td><td class="r">${can('sales') ? `<button class="btn sm" data-act="order-edit" data-id="${o.id}">Edit</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('cart', 'No orders match', 'Try a different search.')}`, { sub: `${Math.min(40, os.length)} of ${os.length} shown, newest first` })}`;
+  ${os.length ? `<div class="tbl-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Crop</th><th class="r">Qty</th><th class="r">Value</th><th>Delivery date</th><th>Status</th><th><span class="sr">Actions</span></th></tr></thead><tbody>${os.slice(0, 40).map(o => `<tr><td class="mono">${esc(o.id)}</td><td>${esc(o.customer)}</td><td>${esc(cropDef(o.crop).label)}</td><td class="r num">${num(o.kg)} kg</td><td class="r num">${money(o.kg * o.pricePerKg)}</td><td class="num">${fmtD(o.date)}</td><td>${orderBadge(o.status)}</td><td class="r">${can('sales') ? `<button class="btn sm" data-act="order-edit" data-id="${esc(o.id)}">Edit</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : allOs.length ? empty('cart', 'No orders match', 'Try a different search.') : empty('cart', 'No sales orders yet', can('sales') ? 'Create a customer order in Live Data mode to get started.' : 'No orders recorded in Live Data mode yet.')}`, { sub: `${Math.min(40, os.length)} of ${os.length} shown, newest first` })}`;
 }
 const orderBadge = s => `<span class="badge ${s === 'Delivered' ? 'b-ok' : s === 'Cancelled' ? 'b-crit' : s === 'Draft' ? 'b-mute' : 'b-info'}">${s}</span>`;
 function orderForm(id) {
-  const o = id ? Store.get('orders', id) : { customer: '', crop: 'Lettuce', kg: '', pricePerKg: CROPS.Lettuce.price, date: dOff(3), status: 'Confirmed', delivery: { status: 'Scheduled', vehicle: 'Van 1 (refrigerated)', window: '07:00–10:00' } };
-  openModal({ title: id ? `Edit ${o.id}` : 'New sales order', submitLabel: id ? 'Save changes' : 'Create order',
-    body: `<div class="form-grid">${fld('Customer', `<input id="so-c" name="customer" list="custList" value="${esc(o.customer)}"><datalist id="custList">${CUSTOMERS.map(c => `<option value="${c}">`).join('')}</datalist>`, 'customer')}
-      ${fld('Crop', `<select id="so-crop" name="crop">${Object.entries(CROPS).map(([k, c]) => `<option value="${k}" ${o.crop === k ? 'selected' : ''}>${c.label}</option>`).join('')}</select>`, 'crop')}
+  const cropsObj = cropsMap();
+  const cropEntries = Object.entries(cropsObj);
+  const firstCrop = cropEntries[0]?.[0] || 'Lettuce';
+  const existing = id ? Store.get('orders', id) : null;
+  const o = existing || { customer: '', crop: firstCrop, kg: '', pricePerKg: cropDef(firstCrop).price, date: dOff(3), status: 'Confirmed', delivery: { status: 'Scheduled', vehicle: 'Van 1 (refrigerated)', window: '07:00–10:00' } };
+  const custs = customersList();
+  openModal({
+    title: existing ? `Edit ${o.id}` : 'New sales order',
+    submitLabel: existing ? 'Save changes' : 'Create order',
+    footer: existing && can('sales') ? `<button type="button" class="btn danger" data-act="order-delete" data-id="${esc(o.id)}">Delete</button>` : '',
+    body: `<div class="form-grid">${fld('Customer', `<input id="so-c" name="customer" list="custList" value="${esc(o.customer)}"><datalist id="custList">${custs.map(c => `<option value="${esc(c)}">`).join('')}</datalist>`, 'customer')}
+      ${fld('Crop', cropEntries.length ? `<select id="so-crop" name="crop">${cropEntries.map(([k, c]) => `<option value="${esc(k)}" ${o.crop === k ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select>` : `<input id="so-crop" name="crop" value="${esc(o.crop)}" placeholder="e.g. Lettuce">`, 'crop')}
       ${fld('Quantity (kg)', `<input id="so-kg" name="kg" type="number" min="0" step="0.1" value="${esc(o.kg)}">`, 'kg')}
       ${fld('Price per kg ($)', `<input id="so-p" name="pricePerKg" type="number" min="0" step="0.01" value="${esc(o.pricePerKg)}">`, 'pricePerKg')}
-      ${fld('Delivery date', `<input id="so-d" name="date" type="date" value="${o.date}">`, 'date')}
-      ${fld('Order status', `<select id="so-st" name="status">${ORDER_ST.map(s => `<option ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`, 'status', 'Delivered orders count as actual revenue.')}</div>`,
-    onOpen: m => { $('#so-crop', m).onchange = e => { $('#so-p', m).value = CROPS[e.target.value].price; }; },
-    validate: d => ({ customer: d.customer.trim().length < 2 && 'Enter the customer name.', kg: !(+d.kg > 0) && 'Enter a quantity greater than 0 kg.', pricePerKg: !(+d.pricePerKg > 0) && 'Enter a price greater than $0.', date: !d.date && 'Choose a delivery date.' }),
-    submit: async d => { const doc = { ...(id ? o : { id: nextId('SO', orders()) }), ...d, kg: +d.kg, pricePerKg: +d.pricePerKg, delivery: { ...o.delivery, status: d.status === 'Delivered' ? 'Delivered' : d.status === 'Cancelled' ? 'Cancelled' : o.delivery.status } }; await Store.put('orders', doc); return `Order ${doc.id} saved.`; } });
+      ${fld('Delivery date', `<input id="so-d" name="date" type="date" value="${esc(o.date)}">`, 'date')}
+      ${fld('Order status', `<select id="so-st" name="status">${ORDER_ST.map(s => `<option ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`, 'status', 'Delivered orders count as actual revenue.')}
+      ${fld('Delivery vehicle', `<input id="so-veh" name="vehicle" value="${esc(o.delivery?.vehicle || '')}" placeholder="e.g. Van 1 (refrigerated)">`, 'vehicle')}
+      ${fld('Delivery window', `<input id="so-win" name="window" value="${esc(o.delivery?.window || '')}" placeholder="e.g. 07:00–10:00">`, 'window')}</div>`,
+    onOpen: m => {
+      const sel = $('#so-crop', m);
+      if (sel && sel.tagName === 'SELECT') sel.onchange = e => { $('#so-p', m).value = cropDef(e.target.value).price; };
+    },
+    validate: d => ({ customer: d.customer.trim().length < 2 && 'Enter the customer name.', crop: !String(d.crop || '').trim() && 'Enter or select a crop.', kg: !(+d.kg > 0) && 'Enter a quantity greater than 0 kg.', pricePerKg: !(+d.pricePerKg > 0) && 'Enter a price greater than $0.', date: !d.date && 'Choose a delivery date.' }),
+    submit: async d => {
+      const { vehicle, window: win, ...rest } = d;
+      const baseDeliv = o.delivery || { status: 'Scheduled', vehicle: '', window: '' };
+      const nextDelivStatus = rest.status === 'Delivered' ? 'Delivered' : rest.status === 'Cancelled' ? 'Cancelled' : (baseDeliv.status || 'Scheduled');
+      const doc = {
+        ...(existing ? o : { id: nextId('SO', orders()) }),
+        ...rest,
+        customer: rest.customer.trim(),
+        crop: rest.crop.trim(),
+        kg: +rest.kg,
+        pricePerKg: +rest.pricePerKg,
+        delivery: { ...baseDeliv, status: nextDelivStatus, vehicle: (vehicle || '').trim(), window: (win || '').trim() }
+      };
+      await Store.put('orders', doc);
+      return `Order ${doc.id} saved.`;
+    }
+  });
 }
 const DELIV_ST = ['Not scheduled', 'Scheduled', 'Out for delivery', 'Delivered', 'Cancelled'];
 function vLogistics() {
   const os = orders().filter(o => daysFrom(o.date) >= -3 && daysFrom(o.date) <= 14).sort((a, b) => a.date.localeCompare(b.date));
-  return `${pageHead('Logistics', 'Delivery schedule for the past 3 and next 14 days.', '')}
+  return `${pageHead('Logistics', 'Delivery schedule for the past 3 and next 14 days.', can('sales') ? `<button class="btn primary" data-act="order-new">${ic('plus')}New order</button>` : '')}
   <div class="notice">${ic('truck')}<div>Live vehicle tracking and route optimization need a fleet or GPS integration that is <b>not connected</b>. Delivery statuses here are updated by hand.</div></div>
   <div class="stats">${DELIV_ST.slice(0, 4).map(s => `<div class="pill-stat"><b>${os.filter(o => o.delivery?.status === s).length}</b><span>${s}</span></div>`).join('')}</div>
-  ${card('Deliveries', os.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Order</th><th>Customer</th><th class="r">Load</th><th>Vehicle</th><th>Window</th><th>Delivery status</th></tr></thead><tbody>${os.map(o => `<tr><td class="num">${fmtD(o.date)}<div class="small muted">${daysFrom(o.date) === 0 ? 'Today' : daysFrom(o.date) > 0 ? 'in ' + daysFrom(o.date) + ' d' : -daysFrom(o.date) + ' d ago'}</div></td><td class="mono">${o.id}</td><td>${esc(o.customer)}<div class="small muted">${CROPS[o.crop]?.label}</div></td><td class="r num">${num(o.kg)} kg</td><td class="small">${esc(o.delivery?.vehicle || '—')}</td><td class="small num">${esc(o.delivery?.window || '—')}</td><td>${can('sales') ? `<label class="sr" for="dl-${o.id}">Delivery status for ${o.id}</label><select class="select" id="dl-${o.id}" data-deliv="${o.id}" style="height:34px">${DELIV_ST.map(s => `<option ${o.delivery?.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>` : `<span class="badge b-info">${esc(o.delivery?.status)}</span>`}</td></tr>`).join('')}</tbody></table></div>` : empty('truck', 'No deliveries in this window', 'Orders with delivery dates appear here.'))}`;
+  ${card('Deliveries', os.length ? `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Order</th><th>Customer</th><th class="r">Load</th><th>Vehicle</th><th>Window</th><th>Delivery status</th>${can('sales') ? '<th><span class="sr">Actions</span></th>' : ''}</tr></thead><tbody>${os.map(o => `<tr><td class="num">${fmtD(o.date)}<div class="small muted">${daysFrom(o.date) === 0 ? 'Today' : daysFrom(o.date) > 0 ? 'in ' + daysFrom(o.date) + ' d' : -daysFrom(o.date) + ' d ago'}</div></td><td class="mono">${esc(o.id)}</td><td>${esc(o.customer)}<div class="small muted">${esc(cropDef(o.crop).label)}</div></td><td class="r num">${num(o.kg)} kg</td><td class="small">${esc(o.delivery?.vehicle || '—')}</td><td class="small num">${esc(o.delivery?.window || '—')}</td><td>${can('sales') ? `<label class="sr" for="dl-${esc(o.id)}">Delivery status for ${esc(o.id)}</label><select class="select" id="dl-${esc(o.id)}" data-deliv="${esc(o.id)}" style="height:34px">${DELIV_ST.map(s => `<option ${o.delivery?.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>` : `<span class="badge b-info">${esc(o.delivery?.status)}</span>`}</td>${can('sales') ? `<td class="r"><button class="btn sm ghost" data-act="order-edit" data-id="${esc(o.id)}">Edit</button></td>` : ''}</tr>`).join('')}</tbody></table></div>` : empty('truck', 'No deliveries in this window', 'Orders with delivery dates appear here.'))}`;
 }
 
 /* ================= Modal & forms ================= */
@@ -2555,10 +3581,10 @@ function searchAll(q) {
   q = q.toLowerCase().trim(); if (q.length < 2) return [];
   const R = [];
   Object.entries(ROUTES).forEach(([k, r]) => r.group && r.label.toLowerCase().includes(q) && R.push({ type: 'Page', label: r.label, go: () => go(k) }));
-  GH.forEach(g => (`${g.name} ${g.main} ${g.system}`.toLowerCase().includes(q)) && R.push({ type: 'Greenhouse', label: `${g.name} · ${ST_LABEL[ghStatus(g.id)]}`, go: () => go(g.id) }));
-  batches().forEach(b => (`${b.id} ${b.crop} ${CROPS[b.crop].label} ${b.variety} ${b.zone}`.toLowerCase().includes(q)) && R.push({ type: 'Batch', label: `${b.id} · ${CROPS[b.crop].label} · ${b.stage}`, go: () => batchDetail(b.id) }));
+  greenhouses().forEach(g => (`${g.name} ${g.main || ''} ${g.system || ''}`.toLowerCase().includes(q)) && R.push({ type: 'Greenhouse', label: `${g.name} · ${ST_LABEL[ghStatus(g.id)]}`, go: () => go(g.id) }));
+  batches().forEach(b => { const cLabel = cropDef(b.crop).label; return (`${b.id} ${b.crop} ${cLabel} ${b.variety || ''} ${b.zone}`.toLowerCase().includes(q)) && R.push({ type: 'Batch', label: `${b.id} · ${cLabel} · ${b.stage}`, go: () => batchDetail(b.id) }); });
   tasks().forEach(t => (`${t.id} ${t.title} ${t.assignee}`.toLowerCase().includes(q)) && R.push({ type: 'Task', label: `${t.title} · ${t.assignee}`, go: () => taskForm(t.id) }));
-  inventory().forEach(i => (`${i.id} ${i.name} ${i.supplier}`.toLowerCase().includes(q)) && R.push({ type: 'Inventory', label: `${i.name} · ${num(i.qty)} ${i.unit}`, go: () => { ui.invQ = i.name; go('inventory'); } }));
+  inventory().forEach(i => (`${i.id} ${i.name} ${i.supplier || ''}`.toLowerCase().includes(q)) && R.push({ type: 'Inventory', label: `${i.name} · ${num(i.qty)} ${i.unit}`, go: () => { ui.invQ = i.name; go('inventory'); } }));
   orders().slice(0, 80).forEach(o => (`${o.id} ${o.customer}`.toLowerCase().includes(q)) && R.push({ type: 'Order', label: `${o.id} · ${o.customer} · ${o.status}`, go: () => { ui.saleF = o.id; go('sales'); } }));
   return R.slice(0, 12);
 }
@@ -2601,12 +3627,15 @@ function closePops() {
 const bellHtml = () => { const a = activeAlerts().slice(0, 5); return `<div class="split" style="justify-content:space-between;margin-bottom:8px"><h3>Notifications</h3><a class="btn sm" href="#alerts">All alerts</a></div>${a.length ? `<div class="alerts">${a.map(x => `<a class="alert ${x.sev}" style="grid-template-columns:auto 1fr;text-decoration:none;color:inherit" href="${x.link || '#alerts'}"><span class="sev-ico">${ic(x.icon)}</span><div><b>${esc(x.title)}</b><div class="alert-meta">${badge(x.sev)}<span class="small muted">${ageText(x.age)}</span></div></div></a>`).join('')}</div>` : '<p class="muted">You are all caught up.</p>'}`; };
 const profileHtml = () => {
   const u = currentUser();
+  const editFarmBtn = can('targets') ? `<button class="btn sm" data-act="farm-edit" style="width:100%;margin-bottom:8px">${ic('edit')}Edit farm details</button>` : '';
   if (!AuthState.isDemoAuth && AuthState.user) {
     return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase()}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(AuthState.profile?.email || AuthState.user.email || '')}</div><div class="small muted">${esc(u.role)} · ${esc(activeFarmName())}</div></div></div>
+      ${editFarmBtn}
       <hr style="border:0;border-top:1px solid var(--line);margin:12px 0">
       <button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`;
   }
   return `<div class="split" style="margin-bottom:12px"><span class="avatar" style="width:40px;height:40px">${u.name.split(' ').map(x => x[0]).join('')}</span><div><b>${esc(u.name)}</b><div class="small muted">${esc(u.role)} · ${esc(activeFarmName())}</div></div></div>
+  ${editFarmBtn}
   <div class="field"><label for="roleSel">Viewing as role (demo)</label><select id="roleSel" class="select">${Object.keys(ROLES).map(r => `<option ${r === ui.role ? 'selected' : ''}>${r}</option>`).join('')}</select><span class="hint">Owners see finances and settings. Managers run operations. Workers complete tasks, log observations, record harvests and stock use.</span></div>
   <hr style="border:0;border-top:1px solid var(--line);margin:12px 0"><button class="btn" data-act="auth-signout" style="width:100%">Sign out</button>`;
 };
@@ -2617,7 +3646,7 @@ const mobileUtilHtml = () => {
   const isDark = currentTheme() === 'dark';
   const farmOpts = (!AuthState.isDemoAuth && AuthState.farms.length)
     ? AuthState.farms.map(f => `<option value="${esc(f.farmId)}" ${f.farmId === AuthState.currentFarmId ? 'selected' : ''}>${esc(f.name)}</option>`).join('')
-    : `<option value="riverside" ${ui.farm === 'riverside' ? 'selected' : ''}>Riverside Hydro Farm</option><option value="hilltop" ${ui.farm === 'hilltop' ? 'selected' : ''}>Hilltop Annex</option>`;
+    : `<option value="riverside" ${ui.farm === 'riverside' ? 'selected' : ''}>${esc(activeFarmName())}</option><option value="hilltop" ${ui.farm === 'hilltop' ? 'selected' : ''}>Hilltop Annex</option>`;
   return `
   <div class="mobile-util-menu">
     <div class="mu-section">
@@ -2639,6 +3668,11 @@ const mobileUtilHtml = () => {
       ${!AuthState.isDemoAuth && AuthState.user ? `<button class="btn sm" data-act="farm-new" style="width:100%;margin-top:8px">${ic('plus')}Create new farm</button>` : ''}
     </div>
     */
+
+    <div class="mu-section">
+      <div class="mu-title">${ic('gauge')} Data Source Mode</div>
+      ${dataModeToggleHtml('mu-dm-toggle')}
+    </div>
 
     <div class="mu-section">
       <div class="mu-title">${ic('plus')} Quick Actions</div>
@@ -2697,6 +3731,12 @@ function closeNav() { $('#sidebar').classList.remove('open'); $('#overlay').clas
 /* ================= Events ================= */
 document.addEventListener('click', async e => {
   const t = e.target;
+  const dmBtn = t.closest('[data-data-mode]');
+  if (dmBtn) {
+    e.preventDefault();
+    setDataMode(dmBtn.dataset.dataMode);
+    return;
+  }
   const hvScroll = t.closest('[data-hv-scroll]');
   if (hvScroll) {
     e.preventDefault();
@@ -2754,6 +3794,24 @@ document.addEventListener('click', async e => {
   const id = a.dataset.id, act = a.dataset.act;
   if (a.tagName === 'TR' && t.closest('button,a,select,input') && t.closest('button,a,select,input') !== a) return;
   switch (act) {
+    case 'farm-edit': farmSettingsForm(); break;
+    case 'store-retry': {
+      const ok = await Store.loadFromBackend();
+      render();
+      toast(ok ? 'Farm data synchronized.' : 'Still unable to reach backend.', ok ? '' : 'error');
+      break;
+    }
+    case 'gh-new': can('targets') ? ghForm() : toast('Adding greenhouses requires manager or owner access.', 'error'); break;
+    case 'gh-edit': can('targets') ? ghForm(id) : toast('Editing greenhouses requires manager or owner access.', 'error'); break;
+    case 'gh-delete': confirmDelete(`greenhouse ${ghName(id)}`, async () => { await Store.remove('greenhouses', id); if (ui.route === id) go('greenhouses'); return 'Greenhouse deleted.'; }); break;
+    case 'crop-manage': cropsManagerModal(); break;
+    case 'crop-new': cropForm(); break;
+    case 'crop-edit': cropForm(id); break;
+    case 'crop-delete': confirmDelete(`crop ${cropDef(id).label}`, async () => { await Store.remove('crops', id); return 'Crop removed.'; }); break;
+    case 'team-manage': teamManagerModal(); break;
+    case 'team-new': teamMemberForm(); break;
+    case 'team-edit': teamMemberForm(id); break;
+    case 'team-delete': confirmDelete('this team member', async () => { await Store.remove('team', id); return 'Team member removed.'; }); break;
     case 'batch': batchDetail(id); break;
     case 'batch-new': can('batches') ? batchForm() : toast('Adding batches is not available for this role.', 'error'); break;
     case 'batch-edit': batchForm(id); break;
@@ -2763,6 +3821,8 @@ document.addEventListener('click', async e => {
     case 'harvest-record':
     case 'harvest-new': harvestForm(id); break;
     case 'harvest-view': harvestView(id); break;
+    case 'harvest-edit': harvestEditForm(id); break;
+    case 'harvest-delete': confirmDelete(`harvest ${id}`, async () => { await Store.remove('harvests', id); return `Harvest ${id} deleted.`; }); break;
     case 'cal-prev': ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth() - 1, 1); render(); break;
     case 'cal-next': ui.calMonth = new Date(ui.calMonth.getFullYear(), ui.calMonth.getMonth() + 1, 1); render(); break;
     case 'cal-today': ui.calMonth = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1); render(); break;
@@ -2772,14 +3832,18 @@ document.addEventListener('click', async e => {
     case 'task-delete': confirmDelete('this task', async () => { await Store.remove('tasks', id); return 'Task deleted.'; }); break;
     case 'inv-new': invForm(); break;
     case 'inv-edit': invForm(id); break;
+    case 'inv-delete': confirmDelete('this inventory item', async () => { await Store.remove('inventory', id); return 'Inventory item deleted.'; }); break;
     case 'move-new': moveForm(id); break;
     case 'alert-ack': setAlert(id, 'acknowledged'); break;
     case 'alert-resolve': setAlert(id, 'resolved'); break;
     case 'alert-reopen': setAlert(id, 'new'); break;
     case 'command': commandConfirm(a.dataset.gh, id); break;
     case 'reading-new': readingForm(id); break;
-    case 'targets-reset': try { await Store.put('targets', { id, ranges: DEFAULT_TARGETS[id] }); toast('Default targets restored.'); } catch (er) { toast(errText(er), 'error'); } break;
-    case 'integration': openModal({ title: 'Connect devices', submitLabel: null, body: `<div class="notice warn">${ic('plug')}<div><b>Device integration is not available in this prototype.</b> Nothing has been connected.</div></div><p>Hydrobot.Ai is structured for an IoT gateway that would publish readings per greenhouse and sensor, for example over MQTT topics like <span class="mono">farm/riverside/gh-a/ph</span>, or through a Modbus TCP bridge for controllers. Once connected, readings would replace demo data and lose the demo label, and equipment commands would still require explicit confirmation.</p>`, footer: '<button type="button" class="btn" data-close>Close</button>' }); break;
+    case 'reading-edit': readingForm(null, id); break;
+    case 'reading-delete': confirmDelete('this manual reading', async () => { await Store.remove('readings', id); return 'Reading deleted.'; }); break;
+    case 'resource-new': resourceForm(); break;
+    case 'targets-reset': try { await Store.put('targets', { id, ranges: DEFAULT_TARGETS[id] || FALLBACK_TARGETS }); toast('Default targets restored.'); } catch (er) { toast(errText(er), 'error'); } break;
+    case 'integration': openModal({ title: 'Connect devices', submitLabel: null, body: `<div class="notice warn">${ic('plug')}<div><b>Device integration is not available in this prototype.</b> Nothing has been connected.</div></div><p>Hydrobot.Ai is structured for an IoT gateway that publishes readings per greenhouse and sensor via <span class="mono">POST /api/telemetry/ingest</span> or over MQTT topics for ${esc(activeFarmName())}. Once connected, readings stream into Live Data mode automatically, and equipment commands still require explicit confirmation.</p>`, footer: '<button type="button" class="btn" data-close>Close</button>' }); break;
     case 'disease-run': analyzeDiseaseImage(); break;
     case 'disease-reset': resetDiseaseAnalysis(); break;
     case 'disease-task': {
@@ -2811,8 +3875,11 @@ document.addEventListener('click', async e => {
     case 'ask': ask(a.dataset.q); break;
     case 'chat-clear': ui.chat = []; render(); break;
     case 'expense-new': expenseForm(); break;
+    case 'expense-edit': expenseForm(id); break;
+    case 'expense-delete': confirmDelete('this expense', async () => { await Store.remove('expenses', id); return 'Expense deleted.'; }); break;
     case 'order-new': orderForm(); break;
     case 'order-edit': orderForm(id); break;
+    case 'order-delete': confirmDelete(`order ${id}`, async () => { await Store.remove('orders', id); return `Order ${id} deleted.`; }); break;
     case 'farm-main': ui.farm = 'riverside'; render(); break;
     // case 'farm-new': createFarmModal(); break;
   }
@@ -2919,9 +3986,10 @@ document.addEventListener('submit', async e => {
       } else {
         AuthState.session = { access_token: 'demo-token' };
         AuthState.user = { email, user_metadata: { full_name: email.split('@')[0] } };
-        AuthState.farms = [{ farmId: 'riverside', name: 'Riverside Hydro Farm', role: 'owner' }];
+        AuthState.farms = [{ farmId: 'riverside', name: Store.get('farm', 'meta')?.name || (isLiveMode() ? 'My Farm' : 'Riverside Hydro Farm'), role: 'owner' }];
         AuthState.role = 'owner';
         ui.role = 'Farm Owner';
+        if (Store.mode === 'backend') await Store.loadFromBackend();
         signedIn = true;
       }
       if (signedIn) toast('Signed in successfully.');
@@ -3133,7 +4201,7 @@ document.addEventListener('submit', async e => {
       ranges[s.k] = [a, b]; });
     if (bad) { err.textContent = bad; $('[aria-invalid]', f).focus(); return; }
     err.textContent = ''; const btn = f.querySelector('[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Saving…';
-    try { await Store.put('targets', { id: gh, ranges }); toast(`Targets saved for ${ghById(gh).name}.`); } catch (er) { err.textContent = errText(er); btn.disabled = false; btn.textContent = 'Save targets'; }
+    try { await Store.put('targets', { id: gh, ranges }); toast(`Targets saved for ${ghName(gh)}.`); } catch (er) { err.textContent = errText(er); btn.disabled = false; btn.textContent = 'Save targets'; }
   }
 });
 $('#gsearch').addEventListener('input', () => { sIdx = -1; renderSearch(); });
@@ -3199,12 +4267,15 @@ new MutationObserver(scheduleRender).observe(document.documentElement, { attribu
   getKnowledgeBase();
   await loadRuntimeConfigAndInitSupabase();
   await initAuth();
-  ui.route = ROUTES[location.hash.replace('#', '')] ? location.hash.replace('#', '') : 'dashboard';
+  const h0 = location.hash.replace('#', '');
+  ui.route = resolveRoute(h0) ? h0 : 'dashboard';
   render();
   const samplePromise = (async () => {
     try { if (!window.claude || typeof claude.use !== 'function') return; const s = await claude.use('sample'); if (!s) return; ui.sample = s; const lim = await s.limits().catch(() => null); ui.sampleImages = !!(lim && lim.images); scheduleRender(); } catch (e) { }
   })();
   await Store.init();
+  const h1 = location.hash.replace('#', '');
+  if (h1 && resolveRoute(h1)) ui.route = h1;
   render();
   await samplePromise;
 })();
